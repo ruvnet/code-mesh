@@ -1,0 +1,80 @@
+name: Protect Main Branch
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/protect-main.yml']
+
+jobs:
+  protect:
+    name: Setup Branch Protection
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Protect main branch
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const { owner, repo } = context.repo;
+          
+          try {
+            await github.rest.repos.updateBranchProtection({
+              owner,
+              repo,
+              branch: 'main',
+              required_status_checks: {
+                strict: true,
+                contexts: ['Test Suite', 'Linting', 'Build', 'WASM Build', 'Security Audit']
+              },
+              enforce_admins: false,
+              required_pull_request_reviews: {
+                required_approving_review_count: 1,
+                dismiss_stale_reviews: true,
+                require_code_owner_reviews: false,
+                require_last_push_approval: false
+              },
+              restrictions: null,
+              allow_force_pushes: false,
+              allow_deletions: false,
+              block_creations: false
+            });
+            
+            console.log('✅ Main branch protection enabled successfully');
+            
+            // Also set up other repository settings
+            await github.rest.repos.update({
+              owner,
+              repo,
+              delete_branch_on_merge: true,
+              allow_squash_merge: true,
+              allow_merge_commit: false,
+              allow_rebase_merge: true
+            });
+            
+            console.log('✅ Repository settings updated');
+            
+          } catch (error) {
+            console.error('❌ Failed to setup branch protection:', error.message);
+            
+            // Try minimal protection if full protection fails
+            try {
+              await github.rest.repos.updateBranchProtection({
+                owner,
+                repo,
+                branch: 'main',
+                required_status_checks: null,
+                enforce_admins: false,
+                required_pull_request_reviews: null,
+                restrictions: null,
+                allow_force_pushes: false,
+                allow_deletions: false
+              });
+              console.log('✅ Minimal branch protection enabled');
+            } catch (minimalError) {
+              console.error('❌ Failed to setup minimal protection:', minimalError.message);
+              throw minimalError;
+            }
+          }
