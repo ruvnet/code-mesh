@@ -44,7 +44,7 @@ which = { workspace = true }
 url = { workspace = true }
 
 # Web functionality
-html5ever = { version = "0.26", optional = true }
+html5ever = { version = "0.35", optional = true }
 markup5ever_rcdom = { version = "0.2", optional = true }
 html2md = { version = "0.2", optional = true }
 scraper = { version = "0.18", optional = true }
