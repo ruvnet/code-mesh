@@ -56,7 +56,7 @@ jobs:
         ./scripts/benchmark.sh
       
     - name: Upload benchmark results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: benchmark-results-${{ github.sha }}
         path: benchmark_results/
@@ -126,7 +126,7 @@ jobs:
         cat memory_profile.txt
     
     - name: Upload memory profile
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: memory-profile-${{ github.sha }}
         path: memory_profile.txt
@@ -215,7 +215,7 @@ jobs:
         "
     
     - name: Upload comparison results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: performance-comparison-${{ github.sha }}
         path: comparison_results.json
