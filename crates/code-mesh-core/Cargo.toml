@@ -92,7 +92,7 @@ memchr = "2.7"
 cfg-if = "1.0"
 
 # Storage
-rusqlite = { version = "0.31", features = ["bundled"], optional = true }
+rusqlite = { version = "0.37", features = ["bundled"], optional = true }
 
 [features]
 default = ["native", "web"]
