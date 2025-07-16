@@ -145,7 +145,7 @@ jobs:
         fail_ci_if_error: true
 
     - name: Archive coverage results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-report
         path: coverage/
@@ -176,7 +176,7 @@ jobs:
       run: cargo bench --all-features
 
     - name: Archive benchmark results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: benchmark-results
         path: target/criterion/
@@ -237,7 +237,7 @@ jobs:
       continue-on-error: true
 
     - name: Archive mutation test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: mutation-test-results
         path: mutants.out/
@@ -363,7 +363,7 @@ jobs:
         echo "- Property tests: ${{ needs.property-tests.result }}" >> test-report.md
 
     - name: Upload test report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-report
         path: test-report.md
