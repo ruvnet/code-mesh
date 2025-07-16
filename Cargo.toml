@@ -87,7 +87,7 @@ clap = { version = "4.5", features = ["derive", "cargo"] }
 consolator = "0.1"
 
 # TUI dependencies
-ratatui = "0.28"
+ratatui = "0.29"
 crossterm = { version = "0.28", features = ["event-stream"] }
 tui-textarea = "0.6"
 tui-input = "0.10"
