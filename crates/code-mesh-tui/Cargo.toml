@@ -14,7 +14,7 @@ categories = ["command-line-utilities", "visualization", "development-tools"]
 
 [dependencies]
 # Core dependencies
-code-mesh-core = { path = "../code-mesh-core" }
+code-mesh-core = { version = "0.1.0", path = "../code-mesh-core" }
 tokio.workspace = true
 anyhow.workspace = true
 serde.workspace = true

@@ -6,8 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const https = require('https');
 const crypto = require('crypto');
-const chalk = require('chalk');
-const ora = require('ora');
+const chalk = require('chalk').default || require('chalk');
+const ora = require('ora').default || require('ora');
 
 // Binary names for different platforms
 const BINARY_NAME = {

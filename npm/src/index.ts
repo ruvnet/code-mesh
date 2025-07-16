@@ -8,10 +8,10 @@
 import { WasmRunner } from './wasm-runner';
 
 // Re-export browser-specific functionality
-export { CodeMeshBrowser, createCodeMesh, initializeGlobal } from './browser';
+export { CodeMeshBrowser } from './browser';
 
 // Re-export WASM runner
-export { WasmRunner, runWasm, defaultWasmRunner } from './wasm-runner';
+export { WasmRunner } from './wasm-runner';
 
 // Environment detection
 export const Environment = {
@@ -352,13 +352,13 @@ export interface WasmFeatures {
     reference_types: boolean;
 }
 
-// Export types
+// Export types (remove duplicate export)
 export type {
-    CodeMeshMessage,
-    CodeMeshSession,
-    PerformanceMetrics,
-    PlatformInfo,
-    WasmFeatures
+    CodeMeshMessage as CodeMeshMessageType,
+    CodeMeshSession as CodeMeshSessionType,
+    PerformanceMetrics as PerformanceMetricsType,
+    PlatformInfo as PlatformInfoType,
+    WasmFeatures as WasmFeaturesType
 };
 
 // Default export

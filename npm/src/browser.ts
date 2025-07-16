@@ -72,7 +72,7 @@ export class CodeMeshBrowser {
             errors.push('WebAssembly not supported');
         }
 
-        if (typeof IndexedDB === 'undefined') {
+        if (typeof indexedDB === 'undefined') {
             errors.push('IndexedDB not supported');
         }
 

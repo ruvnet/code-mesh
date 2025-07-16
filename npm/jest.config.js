@@ -7,10 +7,7 @@ module.exports = {
     '**/?(*.)+(spec|test).ts'
   ],
   transform: {
-    '^.+\.ts$': 'ts-loader'
-  },
-  moduleNameMapping: {
-    '^@/(.*)$': '<rootDir>/src/$1'
+    '^.+\.ts$': 'ts-jest'
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   collectCoverageFrom: [
