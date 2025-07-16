@@ -1,0 +1,78 @@
+[package]
+name = "opencode_core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core engine for OpenCode AI coding assistant"
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+# Core async runtime
+tokio = { workspace = true, optional = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+chrono = { workspace = true }
+log = { workspace = true }
+
+# HTTP client (adapts to WASM automatically)
+reqwest = { workspace = true }
+
+# WASM-specific dependencies
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true }
+console_error_panic_hook = { workspace = true, optional = true }
+console_log = { workspace = true, optional = true }
+
+# Native-only dependencies
+dirs = { workspace = true, optional = true }
+notify = { workspace = true, optional = true }
+which = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = { workspace = true }
+wasm-bindgen-test = { workspace = true }
+
+[features]
+default = ["native-runtime"]
+
+# Native CLI features
+native-runtime = [
+    "tokio", 
+    "dirs", 
+    "notify", 
+    "which"
+]
+
+# WASM/Browser features
+wasm-runtime = [
+    "wasm-bindgen",
+    "wasm-bindgen-futures", 
+    "js-sys",
+    "web-sys",
+    "console_error_panic_hook",
+    "console_log"
+]
+
+# Optional features
+file-watching = ["notify"]
+command-execution = ["which"]

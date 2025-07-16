@@ -1,0 +1,65 @@
+[package]
+name = "opencode_cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI interface for OpenCode AI coding assistant"
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "opencode"
+path = "src/main.rs"
+
+[dependencies]
+# Core OpenCode library
+opencode_core = { path = "../opencode_core", features = ["native-runtime"] }
+
+# CLI framework
+clap = { workspace = true }
+
+# Terminal UI
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Utilities
+dirs = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# Logging
+log = { workspace = true }
+env_logger = { workspace = true }
+
+# Colors and styling
+termcolor = "1.4"
+console = "0.15"
+indicatif = "0.17"
+
+# Signal handling
+tokio-signal = "0.2"
+
+# Configuration
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+assert_cmd = { workspace = true }
+predicates = "3.0"
+
+[features]
+default = ["tui"]
+tui = ["ratatui", "crossterm"]

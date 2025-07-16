@@ -1,0 +1,431 @@
+name: Comprehensive Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test-native:
+    name: Test Native (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable, beta]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        target: ${{ matrix.target }}
+        components: rustfmt, clippy
+        override: true
+        
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+          
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+      
+    - name: Run clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+      
+    - name: Run unit tests
+      run: cargo test --all-features --lib
+      
+    - name: Run integration tests
+      run: cargo test --all-features --test integration
+      
+    - name: Run security tests
+      run: cargo test --all-features --test security
+      
+    - name: Run benchmarks
+      run: cargo bench --all-features
+      
+    - name: Security audit
+      run: |
+        cargo install --force cargo-audit
+        cargo audit
+        
+    - name: Test CLI binary
+      run: |
+        cargo build --release --bin opencode_cli
+        ./target/release/opencode_cli --help
+        
+    - name: Generate test coverage (Linux only)
+      if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+      run: |
+        cargo install --force cargo-tarpaulin
+        cargo tarpaulin --out Xml --engine llvm
+        
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./cobertura.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  test-wasm:
+    name: Test WebAssembly
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        override: true
+        
+    - name: Install Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install wasm-pack
+      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      
+    - name: Build WASM package
+      run: wasm-pack build --target bundler --out-dir pkg
+      
+    - name: Test WASM (Node.js)
+      run: wasm-pack test --node
+      
+    - name: Test WASM (Browser - Chrome)
+      run: wasm-pack test --headless --chrome
+      
+    - name: Test WASM (Browser - Firefox)
+      run: wasm-pack test --headless --firefox
+      
+    - name: Check WASM binary size
+      run: |
+        WASM_SIZE=$(stat -c%s pkg/opencode_web_bg.wasm)
+        echo "WASM binary size: $WASM_SIZE bytes"
+        # Fail if binary is larger than 5MB
+        if [ $WASM_SIZE -gt 5242880 ]; then
+          echo "WASM binary too large: $WASM_SIZE bytes > 5MB"
+          exit 1
+        fi
+        
+    - name: Test NPX distribution
+      run: |
+        cd pkg
+        npm pack
+        npx ./opencode-ai-rust-*.tgz --help
+
+  test-cross-platform:
+    name: Cross-platform compatibility
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        
+    - name: Install cross-compilation tools
+      run: |
+        cargo install --force cross
+        
+    - name: Test cross-compilation targets
+      run: |
+        cross build --target x86_64-unknown-linux-gnu
+        cross build --target x86_64-apple-darwin
+        cross build --target x86_64-pc-windows-gnu
+        cross build --target aarch64-unknown-linux-gnu
+        cross build --target aarch64-apple-darwin
+
+  test-performance:
+    name: Performance benchmarks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        
+    - name: Install criterion
+      run: cargo install --force cargo-criterion
+      
+    - name: Run performance benchmarks
+      run: |
+        cargo bench --all-features
+        cargo criterion --message-format=json > benchmark-results.json
+        
+    - name: Check performance regression
+      run: |
+        # Compare with baseline if available
+        if [ -f benchmark-baseline.json ]; then
+          python3 .github/scripts/check_performance_regression.py
+        fi
+        
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-results
+        path: benchmark-results.json
+
+  test-security:
+    name: Security testing
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        
+    - name: Install security tools
+      run: |
+        cargo install --force cargo-audit
+        cargo install --force cargo-deny
+        
+    - name: Run security audit
+      run: cargo audit
+      
+    - name: Run cargo-deny
+      run: cargo deny check
+      
+    - name: Run security-focused tests
+      run: cargo test --all-features security
+      
+    - name: Test file operation security
+      run: cargo test --all-features --test file_security
+      
+    - name: Test command execution security
+      run: cargo test --all-features --test command_security
+      
+    - name: Fuzz testing (if available)
+      run: |
+        if [ -f fuzz/Cargo.toml ]; then
+          cargo install --force cargo-fuzz
+          cargo fuzz run fuzz_target_1 -- -max_total_time=300
+        fi
+
+  test-memory:
+    name: Memory safety and leaks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        
+    - name: Install Valgrind
+      run: sudo apt-get update && sudo apt-get install -y valgrind
+      
+    - name: Run memory tests with Valgrind
+      run: |
+        cargo build --all-features
+        valgrind --tool=memcheck --leak-check=full --error-exitcode=1 \
+          ./target/debug/opencode_cli --help
+          
+    - name: Test memory usage patterns
+      run: cargo test --all-features --test memory_usage
+      
+    - name: Check for memory leaks in long-running tests
+      run: cargo test --all-features --test long_running_memory
+
+  test-integration:
+    name: Integration testing
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+        
+    - name: Test CLI integration
+      run: |
+        cargo build --release --bin opencode_cli
+        ./target/release/opencode_cli --version
+        ./target/release/opencode_cli --help
+        
+    - name: Test provider integration (mocked)
+      run: cargo test --all-features --test provider_integration
+      
+    - name: Test multi-agent scenarios
+      run: cargo test --all-features --test multi_agent
+      
+    - name: Test configuration management
+      run: cargo test --all-features --test config_management
+      
+    - name: Test error handling
+      run: cargo test --all-features --test error_handling
+
+  test-documentation:
+    name: Documentation testing
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        
+    - name: Test documentation examples
+      run: cargo test --doc
+      
+    - name: Build documentation
+      run: cargo doc --all-features --no-deps
+      
+    - name: Check documentation completeness
+      run: |
+        cargo doc --all-features --no-deps 2>&1 | tee doc_output.txt
+        if grep -q "warning:" doc_output.txt; then
+          echo "Documentation warnings found"
+          exit 1
+        fi
+
+  test-compatibility:
+    name: Compatibility testing
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Test minimum supported Rust version
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: 1.70.0  # Minimum supported version
+        override: true
+        
+    - name: Build with MSRV
+      run: cargo build --all-features
+      
+    - name: Test with MSRV
+      run: cargo test --all-features --lib
+      
+    - name: Test different feature combinations
+      run: |
+        cargo test --no-default-features
+        cargo test --features native-cli
+        cargo test --features web-ui
+        cargo test --features all
+
+  deploy-test:
+    name: Deployment testing
+    runs-on: ubuntu-latest
+    needs: [test-native, test-wasm, test-security]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        override: true
+        
+    - name: Install Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install wasm-pack
+      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      
+    - name: Build release artifacts
+      run: |
+        cargo build --release --all-features
+        wasm-pack build --target bundler --out-dir pkg
+        
+    - name: Test crate publishing (dry-run)
+      run: |
+        cargo publish --dry-run
+        
+    - name: Test npm publishing (dry-run)
+      run: |
+        cd pkg
+        npm publish --dry-run
+        
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-artifacts
+        path: |
+          target/release/opencode_cli
+          pkg/
+
+  notify-results:
+    name: Notify test results
+    runs-on: ubuntu-latest
+    needs: [test-native, test-wasm, test-security, test-performance]
+    if: always()
+    
+    steps:
+    - name: Notify success
+      if: ${{ needs.test-native.result == 'success' && needs.test-wasm.result == 'success' && needs.test-security.result == 'success' }}
+      run: |
+        echo "✅ All tests passed successfully!"
+        
+    - name: Notify failure
+      if: ${{ needs.test-native.result == 'failure' || needs.test-wasm.result == 'failure' || needs.test-security.result == 'failure' }}
+      run: |
+        echo "❌ Some tests failed!"
+        exit 1

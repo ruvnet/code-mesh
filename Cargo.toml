@@ -1,0 +1,57 @@
+[workspace]
+members = [
+    "opencode_core",
+    "opencode_cli", 
+    "opencode_web"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["OpenCode Team <team@opencode.ai>"]
+license = "MIT"
+repository = "https://github.com/sst/opencode"
+description = "An AI coding assistant built for the terminal"
+keywords = ["ai", "coding", "assistant", "terminal", "wasm"]
+categories = ["development-tools", "command-line-utilities"]
+
+[workspace.dependencies]
+# Core dependencies
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
+futures = "0.3"
+log = "0.4"
+env_logger = "0.10"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json", "stream"] }
+
+# CLI dependencies
+clap = { version = "4.0", features = ["derive"] }
+ratatui = "0.24"
+crossterm = "0.27"
+dirs = "5.0"
+notify = "6.0"
+which = "4.0"
+
+# Web dependencies
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = "0.3"
+console_error_panic_hook = "0.1"
+console_log = "1.0"
+
+# Testing
+wasm-bindgen-test = "0.3"
+assert_cmd = "2.0"
+tempfile = "3.0"
+
+# Development
+criterion = "0.5"

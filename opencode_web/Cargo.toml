@@ -1,0 +1,81 @@
+[package]
+name = "opencode_web"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Web interface for OpenCode AI coding assistant"
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Core OpenCode library
+opencode_core = { path = "../opencode_core", features = ["wasm-runtime"] }
+
+# WASM bindings
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+js-sys = { workspace = true }
+web-sys = { workspace = true, features = [
+    "console",
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlTextAreaElement",
+    "HtmlButtonElement",
+    "Event",
+    "EventTarget",
+    "KeyboardEvent",
+    "MouseEvent",
+    "Storage",
+    "Location",
+    "History",
+    "Response",
+    "Request",
+    "Headers",
+    "AbortController",
+    "AbortSignal",
+    "MessageEvent",
+    "WebSocket",
+    "CloseEvent",
+    "ErrorEvent",
+] }
+
+# Error handling
+console_error_panic_hook = { workspace = true }
+console_log = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde-wasm-bindgen = "0.6"
+
+# Utilities
+chrono = { workspace = true, features = ["serde", "wasmbind"] }
+uuid = { workspace = true, features = ["v4", "js"] }
+
+# Web framework (choose one)
+yew = { version = "0.21", features = ["csr"] }
+# leptos = { version = "0.6", features = ["csr"] }
+
+# HTTP client
+reqwest = { workspace = true, features = ["json"] }
+
+# Async utilities
+futures = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+
+# Logging
+log = { workspace = true }
+
+[dev-dependencies]
+wasm-bindgen-test = { workspace = true }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

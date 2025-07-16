@@ -1,0 +1,90 @@
+{
+  "name": "code-mesh",
+  "version": "1.0.0",
+  "description": "A collective intelligence framework for distributed AI-powered development using Rust, WebAssembly, and swarm orchestration",
+  "main": "lib/index.js",
+  "type": "module",
+  "bin": {
+    "code-mesh": "./bin/code-mesh.js"
+  },
+  "scripts": {
+    "build": "cargo build --release",
+    "build:wasm": "wasm-pack build --target bundler --release",
+    "build:npm": "npm run build:wasm && npm run prepare:npm",
+    "prepare:npm": "node scripts/prepare-npm.js",
+    "test": "cargo test && npm run test:wasm",
+    "test:wasm": "wasm-pack test --headless --chrome",
+    "lint": "cargo clippy --all-targets --all-features -- -D warnings",
+    "fmt": "cargo fmt --all -- --check",
+    "prepack": "npm run build:npm",
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "keywords": [
+    "ai",
+    "coding",
+    "assistant",
+    "rust",
+    "webassembly",
+    "wasm",
+    "terminal",
+    "cli",
+    "swarm",
+    "orchestration",
+    "claude",
+    "openai",
+    "anthropic",
+    "collective-intelligence"
+  ],
+  "author": "Code Mesh Collective",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/code-mesh.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/code-mesh/issues"
+  },
+  "homepage": "https://github.com/your-org/code-mesh#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "lib/",
+    "bin/",
+    "pkg/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "commander": "^11.0.0",
+    "chalk": "^5.3.0",
+    "inquirer": "^9.2.0",
+    "node-fetch": "^3.3.0",
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "wasm-pack": "^0.12.0"
+  },
+  "peerDependencies": {
+    "claude-flow": "^2.0.0"
+  },
+  "optionalDependencies": {
+    "fsevents": "^2.3.0"
+  },
+  "exports": {
+    ".": {
+      "import": "./lib/index.js",
+      "require": "./lib/index.cjs"
+    },
+    "./wasm": {
+      "import": "./pkg/code_mesh.js",
+      "types": "./pkg/code_mesh.d.ts"
+    }
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  }
+}
