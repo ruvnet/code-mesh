@@ -1,0 +1,132 @@
+---
+title: CLI
+description: The opencode CLI options and commands.
+---
+
+Running the opencode CLI starts it for the current directory.
+
+```bash
+opencode
+```
+
+Or you can start it for a specific working directory.
+
+```bash
+opencode /path/to/project
+```
+
+---
+
+## Commands
+
+The opencode CLI also has the following commands.
+
+---
+
+### run
+
+Run opencode in non-interactive mode by passing a prompt directly.
+
+```bash
+opencode run [message..]
+```
+
+This is useful for scripting, automation, or when you want a quick answer without launching the full TUI. For example.
+
+```bash "opencode run"
+opencode run Explain the use of context in Go
+```
+
+#### Flags
+
+| Flag         | Short | Description                                |
+| ------------ | ----- | ------------------------------------------ |
+| `--continue` | `-c`  | Continue the last session                  |
+| `--session`  | `-s`  | Session ID to continue                     |
+| `--share`    |       | Share the session                          |
+| `--model`    | `-m`  | Model to use in the form of provider/model |
+
+---
+
+### auth
+
+Command to manage credentials and login for providers.
+
+```bash
+opencode auth [command]
+```
+
+---
+
+#### login
+
+Logs you into a provider and saves them in the credentials file in `~/.local/share/opencode/auth.json`.
+
+```bash
+opencode auth login
+```
+
+When opencode starts up it loads the providers from the credentials file. And if there are any keys defined in your environments or a `.env` file in your project.
+
+---
+
+#### list
+
+Lists all the authenticated providers as stored in the credentials file.
+
+```bash
+opencode auth list
+```
+
+Or the short version.
+
+```bash
+opencode auth ls
+```
+
+---
+
+#### logout
+
+Logs you out of a provider by clearing it from the credentials file.
+
+```bash
+opencode auth logout
+```
+
+---
+
+### upgrade
+
+Updates opencode to the latest version or a specific version.
+
+```bash
+opencode upgrade [target]
+```
+
+To upgrade to the latest version.
+
+```bash
+opencode upgrade
+```
+
+To upgrade to a specific version.
+
+```bash
+opencode upgrade v0.1.48
+```
+
+---
+
+## Flags
+
+The opencode CLI takes the following flags.
+
+| Flag           | Short | Description          |
+| -------------- | ----- | -------------------- |
+| `--help`       | `-h`  | Display help         |
+| `--version`    |       | Print version number |
+| `--print-logs` |       | Print logs to stderr |
+| `--prompt`     | `-p`  | Prompt to use        |
+| `--model`      | `-m`  | Model to use in the form of provider/model |
+| `--mode`       |       | Mode to use          |

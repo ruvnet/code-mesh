@@ -1,0 +1,62 @@
+[workspace]
+members = [
+    "crates/code-mesh-core",
+    "crates/code-mesh-cli", 
+    "crates/code-mesh-wasm",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Code Mesh Contributors"]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/yourusername/code-mesh"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.38", features = ["full"] }
+futures = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+base64 = "0.22"
+sha2 = "0.10"
+
+# File system
+dirs = "5.0"
+glob = "0.3"
+walkdir = "2.5"
+
+# Process execution
+which = "6.0"
+
+# Testing
+mockall = "0.12"
+tempfile = "3.10"
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+
+[profile.wasm]
+inherits = "release"
+opt-level = "z"  # Optimize for size

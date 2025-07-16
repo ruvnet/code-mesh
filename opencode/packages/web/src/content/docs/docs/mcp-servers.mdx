@@ -1,0 +1,56 @@
+---
+title: MCP servers
+description: Add local and remote MCP tools.
+---
+
+You can add external tools to opencode using the _Model Context Protocol_, or MCP. opencode supports both:
+
+- Local servers
+- And remote servers
+
+Once added, MCP tools are automatically available to the LLM alongside built-in tools.
+
+---
+
+## Configure
+
+You can define MCP servers in your opencode config under `mcp`.
+
+### Local
+
+Add a local MCP servers under `mcp.localmcp`.
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "localmcp": {
+      "type": "local",
+      "command": ["bun", "x", "my-mcp-command"],
+      "enabled": true,
+      "environment": {
+        "MY_ENV_VAR": "my_env_var_value"
+      }
+    }
+  }
+}
+```
+
+You can also disable a server by setting `enabled` to `false`. This is useful if you want to temporarily disable a server without removing it from your config.
+
+### Remote
+
+Add a remote MCP servers under `mcp.remotemcp`.
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "remotemcp": {
+      "type": "remote",
+      "url": "https://my-mcp-server.com",
+      "enabled": true
+    }
+  }
+}
+```

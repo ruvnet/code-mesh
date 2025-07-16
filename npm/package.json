@@ -1,0 +1,50 @@
+{
+  "name": "code-mesh",
+  "version": "0.1.0",
+  "description": "AI-powered coding assistant - modular Rust + WASM system",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "code-mesh": "./bin/code-mesh.js"
+  },
+  "scripts": {
+    "build": "npm run build:wasm && npm run build:ts",
+    "build:wasm": "wasm-pack build ../crates/code-mesh-wasm --target nodejs --out-dir ../../npm/wasm",
+    "build:ts": "tsc",
+    "prepare": "npm run build",
+    "test": "jest"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "wasm/"
+  ],
+  "keywords": [
+    "ai",
+    "coding-assistant",
+    "llm",
+    "rust",
+    "wasm",
+    "cli"
+  ],
+  "author": "Code Mesh Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/code-mesh.git"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "ora": "^8.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "jest": "^29.0.0",
+    "@types/jest": "^29.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,52 @@
+[package]
+name = "code-mesh-core"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+reqwest = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+dirs = { workspace = true }
+
+# Core specific dependencies
+async-trait = "0.1"
+indexmap = { version = "2.2", features = ["serde"] }
+parking_lot = "0.12"
+once_cell = "1.19"
+
+# LLM SDK dependencies (optional based on features)
+async-openai = { version = "0.23", optional = true }
+
+# Tool system
+ripgrep = { version = "14.1", package = "grep" }
+regex = "1.10"
+similar = "2.5"
+
+# Storage
+rusqlite = { version = "0.31", features = ["bundled"], optional = true }
+
+[features]
+default = ["native"]
+native = ["rusqlite"]
+wasm = []
+openai = ["async-openai"]
+anthropic = []
+mistral = []
+
+[dev-dependencies]
+mockall = { workspace = true }
+tempfile = { workspace = true }
+tokio-test = "0.4"

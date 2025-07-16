@@ -1,0 +1,63 @@
+name: publish
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+    tags:
+      - "*"
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - run: git fetch --force --tags
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ">=1.24.0"
+          cache: true
+          cache-dependency-path: go.sum
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.17
+
+      - name: Install makepkg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pacman-package-manager
+
+      - name: Setup SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H aur.archlinux.org >> ~/.ssh/known_hosts
+          git config --global user.email "opencode@sst.dev"
+          git config --global user.name "opencode"
+
+      - name: Publish
+        run: |
+          bun install
+          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            ./script/publish.ts
+          else
+            ./script/publish.ts --snapshot
+          fi
+        working-directory: ./packages/opencode
+        env:
+          GITHUB_TOKEN: ${{ secrets.SST_GITHUB_TOKEN }}
+          AUR_KEY: ${{ secrets.AUR_KEY }}
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
