@@ -18,10 +18,14 @@ use std::sync::Arc;
 use futures::future;
 
 use super::{
-    Provider, Model, LanguageModel, Message, MessageRole, MessageContent,
-    GenerateOptions, GenerateResult, StreamOptions, StreamChunk,
-    Usage, FinishReason, ToolCall, ToolDefinition,
+    Provider, Model, Message, MessageRole, MessageContent, MessagePart,
+    GenerateOptions, GenerateResult, StreamChunk, StreamOptions,
+    ToolCall, ToolDefinition, Usage, FinishReason, LanguageModel,
+    ModelInfo, ModelCapabilities, ModelLimits, ModelPricing, ModelStatus,
+    ProviderHealth, ProviderConfig, RateLimitInfo, UsageStats,
+    ModelConfig,
 };
+use super::provider::ModelMetadata;
 use crate::auth::{Auth, AuthCredentials};
 
 /// Simple auth implementation for models
@@ -67,11 +71,31 @@ impl Auth for SimpleAnthropicAuth {
     }
 }
 
+/// Anthropic provider operation mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnthropicMode {
+    /// Standard API mode
+    Standard,
+    /// Batch processing mode (lower cost, higher latency)
+    Batch,
+    /// Real-time mode (optimized for low latency)
+    RealTime,
+}
+
+impl Default for AnthropicMode {
+    fn default() -> Self {
+        Self::Standard
+    }
+}
+
 /// Anthropic provider with rate limiting and retry logic
+#[derive(Clone)]
 pub struct AnthropicProvider {
     client: Client,
-    auth: Box<dyn Auth>,
+    auth: Arc<dyn Auth>,
     rate_limiter: Arc<RateLimiter>,
+    config: ProviderConfig,
+    mode: AnthropicMode,
 }
 
 /// Rate limiter for API requests
@@ -129,8 +153,13 @@ impl AnthropicProvider {
         
         Self { 
             client, 
-            auth,
+            auth: Arc::from(auth),
             rate_limiter: Arc::new(RateLimiter::new()),
+            config: ProviderConfig {
+                provider_id: "anthropic".to_string(),
+                ..Default::default()
+            },
+            mode: AnthropicMode::default(),
         }
     }
     
@@ -282,134 +311,289 @@ impl Provider for AnthropicProvider {
         "Anthropic"
     }
     
-    fn api_endpoint(&self) -> Option<&str> {
-        Some("https://api.anthropic.com/v1")
+    fn base_url(&self) -> &str {
+        "https://api.anthropic.com"
     }
     
-    fn env_vars(&self) -> &[String] {
-        static ENV_VARS: Lazy<Vec<String>> = Lazy::new(|| {
-            vec!["ANTHROPIC_API_KEY".to_string()]
-        });
-        &ENV_VARS
+    fn api_version(&self) -> &str {
+        "2023-06-01"
     }
     
-    fn npm_package(&self) -> Option<&str> {
-        Some("@anthropic-ai/sdk")
-    }
-    
-    fn models(&self) -> &HashMap<String, Box<dyn Model>> {
-        static MODELS: Lazy<HashMap<String, Box<dyn Model>>> = Lazy::new(|| {
-            let mut models = HashMap::new();
-            
-            // Claude 3.5 Sonnet - Latest flagship model
-            models.insert("claude-3-5-sonnet-20241022".to_string(), Box::new(AnthropicModelInfo {
+    async fn list_models(&self) -> crate::Result<Vec<ModelInfo>> {
+        // Return hardcoded list of available Anthropic models
+        Ok(vec![
+            ModelInfo {
                 id: "claude-3-5-sonnet-20241022".to_string(),
                 name: "Claude 3.5 Sonnet".to_string(),
-                release_date: "2024-10-22".to_string(),
-                capabilities: super::provider::ModelCapabilities {
-                    attachment: true,
-                    reasoning: true,
-                    temperature: true,
-                    tool_call: true,
+                description: Some("Latest flagship model with improved performance".to_string()),
+                capabilities: ModelCapabilities {
+                    text_generation: true,
+                    tool_calling: true,
                     vision: true,
+                    streaming: true,
                     caching: true,
+                    json_mode: true,
+                    reasoning: true,
+                    code_generation: true,
+                    multilingual: true,
+                    custom: HashMap::new(),
                 },
-                cost: super::provider::Cost {
-                    input: 3.0,
-                    output: 15.0,
-                    cache_read: Some(0.3),
-                    cache_write: Some(3.75),
+                limits: ModelLimits {
+                    max_context_tokens: 200000,
+                    max_output_tokens: 8192,
+                    max_image_size_bytes: Some(5 * 1024 * 1024),
+                    max_images_per_request: Some(20),
+                    max_tool_calls: Some(20),
+                    rate_limits: RateLimitInfo {
+                        requests_per_minute: Some(100),
+                        tokens_per_minute: Some(40000),
+                        tokens_per_day: None,
+                        concurrent_requests: Some(10),
+                        current_usage: None,
+                    },
                 },
-                limits: super::provider::Limits {
-                    context: 200000,
-                    output: 8192,
+                pricing: ModelPricing {
+                    input_cost_per_1k: 3.0,
+                    output_cost_per_1k: 15.0,
+                    cache_read_cost_per_1k: Some(0.3),
+                    cache_write_cost_per_1k: Some(3.75),
+                    currency: "USD".to_string(),
                 },
-                options: HashMap::new(),
-            }) as Box<dyn Model>);
-            
-            // Claude 3.5 Haiku - Fast and efficient
-            models.insert("claude-3-5-haiku-20241022".to_string(), Box::new(AnthropicModelInfo {
+                release_date: Some(chrono::DateTime::parse_from_rfc3339("2024-10-22T00:00:00Z").unwrap().with_timezone(&chrono::Utc)),
+                status: ModelStatus::Active,
+            },
+            ModelInfo {
                 id: "claude-3-5-haiku-20241022".to_string(),
                 name: "Claude 3.5 Haiku".to_string(),
-                release_date: "2024-10-22".to_string(),
-                capabilities: super::provider::ModelCapabilities {
-                    attachment: true,
-                    reasoning: true,
-                    temperature: true,
-                    tool_call: true,
+                description: Some("Fast and efficient model".to_string()),
+                capabilities: ModelCapabilities {
+                    text_generation: true,
+                    tool_calling: true,
                     vision: true,
+                    streaming: true,
                     caching: false,
-                },
-                cost: super::provider::Cost {
-                    input: 1.0,
-                    output: 5.0,
-                    cache_read: None,
-                    cache_write: None,
-                },
-                limits: super::provider::Limits {
-                    context: 200000,
-                    output: 8192,
-                },
-                options: HashMap::new(),
-            }) as Box<dyn Model>);
-            
-            // Claude 3 Opus - Most capable
-            models.insert("claude-3-opus-20240229".to_string(), Box::new(AnthropicModelInfo {
-                id: "claude-3-opus-20240229".to_string(),
-                name: "Claude 3 Opus".to_string(),
-                release_date: "2024-02-29".to_string(),
-                capabilities: super::provider::ModelCapabilities {
-                    attachment: true,
+                    json_mode: true,
                     reasoning: true,
-                    temperature: true,
-                    tool_call: true,
-                    vision: true,
-                    caching: true,
+                    code_generation: true,
+                    multilingual: true,
+                    custom: HashMap::new(),
                 },
-                cost: super::provider::Cost {
-                    input: 15.0,
-                    output: 75.0,
-                    cache_read: Some(1.5),
-                    cache_write: Some(18.75),
+                limits: ModelLimits {
+                    max_context_tokens: 200000,
+                    max_output_tokens: 8192,
+                    max_image_size_bytes: Some(5 * 1024 * 1024),
+                    max_images_per_request: Some(20),
+                    max_tool_calls: Some(20),
+                    rate_limits: RateLimitInfo {
+                        requests_per_minute: Some(200),
+                        tokens_per_minute: Some(80000),
+                        tokens_per_day: None,
+                        concurrent_requests: Some(20),
+                        current_usage: None,
+                    },
                 },
-                limits: super::provider::Limits {
-                    context: 200000,
-                    output: 4096,
+                pricing: ModelPricing {
+                    input_cost_per_1k: 1.0,
+                    output_cost_per_1k: 5.0,
+                    cache_read_cost_per_1k: None,
+                    cache_write_cost_per_1k: None,
+                    currency: "USD".to_string(),
                 },
-                options: HashMap::new(),
-            }) as Box<dyn Model>);
-            
-            models
-        });
-        &MODELS
+                release_date: Some(chrono::DateTime::parse_from_rfc3339("2024-10-22T00:00:00Z").unwrap().with_timezone(&chrono::Utc)),
+                status: ModelStatus::Active,
+            },
+        ])
     }
     
-    async fn authenticate(&self) -> crate::Result<AuthCredentials> {
-        self.auth.get_credentials().await
-    }
-    
-    async fn get_model(&self, model_id: &str) -> crate::Result<Box<dyn LanguageModel>> {
-        // Create a simple API key auth for the model  
-        let auth: Box<dyn Auth> = Box::new(SimpleAnthropicAuth::new());
+    async fn get_model(&self, model_id: &str) -> crate::Result<Arc<dyn Model>> {
+        // Create the model
+        let model = AnthropicModel::new(
+            self.clone(),
+            model_id.to_string(),
+        );
         
-        Ok(Box::new(AnthropicModel {
-            client: self.client.clone(),
-            model_id: model_id.to_string(),
-            auth,
-            rate_limiter: self.rate_limiter.clone(),
-        }))
+        // Wrap it with provider
+        let model_with_provider = AnthropicModelWithProvider::new(model, self.clone());
+        
+        // Create wrapper that implements both Model and LanguageModel
+        let wrapper = AnthropicModelWrapper::new(model_with_provider);
+        
+        Ok(Arc::new(wrapper))
+    }
+    
+    async fn health_check(&self) -> crate::Result<ProviderHealth> {
+        // Check API availability
+        let start = std::time::Instant::now();
+        
+        // Try to authenticate
+        match self.auth.get_credentials().await {
+            Ok(_) => {
+                Ok(ProviderHealth {
+                    available: true,
+                    latency_ms: Some(start.elapsed().as_millis() as u64),
+                    error: None,
+                    last_check: chrono::Utc::now(),
+                    details: HashMap::new(),
+                })
+            }
+            Err(e) => {
+                Ok(ProviderHealth {
+                    available: false,
+                    latency_ms: Some(start.elapsed().as_millis() as u64),
+                    error: Some(e.to_string()),
+                    last_check: chrono::Utc::now(),
+                    details: HashMap::new(),
+                })
+            }
+        }
+    }
+    
+    fn get_config(&self) -> &ProviderConfig {
+        &self.config
+    }
+    
+    async fn update_config(&mut self, config: ProviderConfig) -> crate::Result<()> {
+        self.config = config;
+        Ok(())
+    }
+    
+    async fn get_rate_limits(&self) -> crate::Result<RateLimitInfo> {
+        // Return default rate limits for Anthropic
+        Ok(RateLimitInfo {
+            requests_per_minute: Some(100),
+            tokens_per_minute: Some(40000),
+            tokens_per_day: None,
+            concurrent_requests: Some(10),
+            current_usage: None,
+        })
+    }
+    
+    async fn get_usage(&self) -> crate::Result<UsageStats> {
+        // Return empty usage stats for now
+        Ok(UsageStats {
+            total_requests: 0,
+            total_tokens: 0,
+            total_cost: 0.0,
+            currency: "USD".to_string(),
+            by_model: HashMap::new(),
+            by_period: HashMap::new(),
+        })
     }
 }
 
+
 /// Anthropic model implementation
-struct AnthropicModel {
+pub struct AnthropicModel {
+    id: String,
+    provider: AnthropicProvider,
     client: Client,
-    model_id: String,
-    auth: Box<dyn Auth>,
+    auth: Arc<dyn Auth>,
     rate_limiter: Arc<RateLimiter>,
+    model_id: String,
 }
 
 impl AnthropicModel {
+    /// Create new Anthropic model
+    pub fn new(provider: AnthropicProvider, model_id: String) -> Self {
+        Self {
+            id: model_id.clone(),
+            client: provider.client.clone(),
+            auth: provider.auth.clone(),
+            rate_limiter: provider.rate_limiter.clone(),
+            model_id,
+            provider,
+        }
+    }
+    
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+    
+    pub fn name(&self) -> &str {
+        &self.model_id
+    }
+    
+    pub fn capabilities(&self) -> &ModelCapabilities {
+        // Return a static reference to capabilities
+        static CAPABILITIES: Lazy<ModelCapabilities> = Lazy::new(|| ModelCapabilities {
+            text_generation: true,
+            tool_calling: true,
+            vision: true,
+            streaming: true,
+            caching: true,
+            json_mode: true,
+            reasoning: true,
+            code_generation: true,
+            multilingual: true,
+            custom: HashMap::new(),
+        });
+        &*CAPABILITIES
+    }
+    
+    pub fn config(&self) -> &ModelConfig {
+        // Return a static reference to config
+        static CONFIG: Lazy<ModelConfig> = Lazy::new(|| ModelConfig::default());
+        &*CONFIG
+    }
+    
+    pub fn metadata(&self) -> &ModelMetadata {
+        // Return a static reference to metadata
+        static METADATA: Lazy<ModelMetadata> = Lazy::new(|| ModelMetadata {
+            family: "claude".to_string(),
+            ..Default::default()
+        });
+        &*METADATA
+    }
+    
+    pub async fn count_tokens(&self, messages: &[Message]) -> crate::Result<u32> {
+        // Simple token estimation for now
+        let mut total_tokens = 0u32;
+        for message in messages {
+            match &message.content {
+                MessageContent::Text(text) => {
+                    // Rough estimate: 1 token per 4 characters
+                    total_tokens += (text.len() / 4) as u32;
+                }
+                MessageContent::Parts(parts) => {
+                    for part in parts {
+                        match part {
+                            MessagePart::Text { text } => {
+                                total_tokens += (text.len() / 4) as u32;
+                            }
+                            MessagePart::Image { .. } => {
+                                // Images typically use ~1000 tokens
+                                total_tokens += 1000;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(total_tokens)
+    }
+    
+    pub async fn estimate_cost(&self, input_tokens: u32, output_tokens: u32) -> crate::Result<f64> {
+        // Claude pricing (example rates)
+        let input_cost_per_1k = match self.model_id.as_str() {
+            "claude-3-opus-20240229" => 15.0,
+            "claude-3-sonnet-20240229" => 3.0,
+            "claude-3-haiku-20240307" => 0.25,
+            _ => 3.0, // Default to Sonnet pricing
+        };
+        
+        let output_cost_per_1k = match self.model_id.as_str() {
+            "claude-3-opus-20240229" => 75.0,
+            "claude-3-sonnet-20240229" => 15.0,
+            "claude-3-haiku-20240307" => 1.25,
+            _ => 15.0, // Default to Sonnet pricing
+        };
+        
+        let input_cost = (input_tokens as f64 / 1000.0) * input_cost_per_1k;
+        let output_cost = (output_tokens as f64 / 1000.0) * output_cost_per_1k;
+        
+        Ok(input_cost + output_cost)
+    }
+
     /// Simple retry logic for requests  
     async fn execute_with_retry_simple<F, Fut, T>(&self, mut operation: F) -> crate::Result<T>
     where
@@ -655,21 +839,78 @@ impl LanguageModel for AnthropicModel {
 pub(crate) struct AnthropicModelInfo {
     id: String,
     name: String,
-    release_date: String,
-    capabilities: super::provider::ModelCapabilities,
-    cost: super::provider::Cost,
-    limits: super::provider::Limits,
-    options: HashMap<String, serde_json::Value>,
+    provider_id: String,
+    capabilities: ModelCapabilities,
+    config: ModelConfig,
+    metadata: ModelMetadata,
 }
 
+impl AnthropicModelInfo {
+    pub fn new(id: String, name: String) -> Self {
+        Self {
+            id: id.clone(),
+            name,
+            provider_id: "anthropic".to_string(),
+            capabilities: ModelCapabilities {
+                text_generation: true,
+                tool_calling: true,
+                vision: true,
+                streaming: true,
+                caching: true,
+                json_mode: true,
+                reasoning: true,
+                code_generation: true,
+                multilingual: true,
+                custom: HashMap::new(),
+            },
+            config: ModelConfig {
+                model_id: id,
+                ..Default::default()
+            },
+            metadata: ModelMetadata {
+                family: "claude".to_string(),
+                ..Default::default()
+            },
+        }
+    }
+}
+
+#[async_trait]
 impl Model for AnthropicModelInfo {
     fn id(&self) -> &str { &self.id }
     fn name(&self) -> &str { &self.name }
-    fn release_date(&self) -> &str { &self.release_date }
-    fn capabilities(&self) -> &super::provider::ModelCapabilities { &self.capabilities }
-    fn cost(&self) -> &super::provider::Cost { &self.cost }
-    fn limits(&self) -> &super::provider::Limits { &self.limits }
-    fn options(&self) -> &HashMap<String, serde_json::Value> { &self.options }
+    fn provider_id(&self) -> &str { &self.provider_id }
+    fn capabilities(&self) -> &ModelCapabilities { &self.capabilities }
+    fn config(&self) -> &ModelConfig { &self.config }
+    
+    async fn generate(
+        &self,
+        _messages: Vec<Message>,
+        _options: GenerateOptions,
+    ) -> crate::Result<GenerateResult> {
+        Err(crate::Error::Other(anyhow::anyhow!("AnthropicModelInfo does not support generation directly")))
+    }
+    
+    async fn stream(
+        &self,
+        _messages: Vec<Message>,
+        _options: GenerateOptions,
+    ) -> crate::Result<Pin<Box<dyn Stream<Item = crate::Result<StreamChunk>> + Send>>> {
+        Err(crate::Error::Other(anyhow::anyhow!("AnthropicModelInfo does not support streaming directly")))
+    }
+    
+    async fn count_tokens(&self, _messages: &[Message]) -> crate::Result<u32> {
+        Ok(0) // Placeholder
+    }
+    
+    async fn estimate_cost(&self, input_tokens: u32, output_tokens: u32) -> crate::Result<f64> {
+        // Simple cost calculation based on Claude pricing
+        let input_cost = (input_tokens as f64 / 1000.0) * 3.0;
+        let output_cost = (output_tokens as f64 / 1000.0) * 15.0;
+        Ok(input_cost + output_cost)
+    }
+    
+    fn metadata(&self) -> &ModelMetadata { &self.metadata }
 }
 
 // Response types
@@ -767,7 +1008,7 @@ struct MessageDeltaData {
 #[pin_project]
 struct AnthropicStream {
     #[pin]
-    inner: futures_util::stream::BoxStream<'static, Result<Bytes, reqwest::Error>>,
+    inner: futures_util::stream::BoxStream<'static, std::result::Result<Bytes, reqwest::Error>>,
     buffer: String,
     current_tool_calls: Vec<ToolCall>,
     tool_call_buffer: HashMap<u32, (String, String)>, // index -> (name, partial_json)
@@ -775,7 +1016,7 @@ struct AnthropicStream {
 }
 
 impl AnthropicStream {
-    fn new(stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Send + 'static) -> Self {
+    fn new(stream: impl Stream<Item = std::result::Result<Bytes, reqwest::Error>> + Send + 'static) -> Self {
         Self {
             inner: stream.boxed(),
             buffer: String::new(),
@@ -1180,6 +1421,149 @@ fn convert_finish_reason(stop_reason: &Option<String>) -> FinishReason {
         Some("max_tokens") => FinishReason::Length,
         Some("tool_use") => FinishReason::ToolCalls,
         _ => FinishReason::Stop,
+    }
+}
+
+/// Anthropic model with associated provider
+pub struct AnthropicModelWithProvider {
+    model: AnthropicModel,
+    provider: AnthropicProvider,
+}
+
+/// Wrapper that implements both Model and LanguageModel
+pub struct AnthropicModelWrapper {
+    inner: AnthropicModelWithProvider,
+}
+
+impl AnthropicModelWrapper {
+    pub fn new(model_with_provider: AnthropicModelWithProvider) -> Self {
+        Self { inner: model_with_provider }
+    }
+}
+
+impl AnthropicModelWithProvider {
+    /// Create a new Anthropic model with provider
+    pub fn new(model: AnthropicModel, provider: AnthropicProvider) -> Self {
+        Self { model, provider }
+    }
+    
+    /// Get a reference to the model
+    pub fn model(&self) -> &AnthropicModel {
+        &self.model
+    }
+    
+    /// Get a reference to the provider
+    pub fn provider(&self) -> &AnthropicProvider {
+        &self.provider
+    }
+}
+
+#[async_trait]
+impl Model for AnthropicModelWrapper {
+    fn id(&self) -> &str { self.inner.model.id() }
+    fn name(&self) -> &str { self.inner.model.name() }
+    fn provider_id(&self) -> &str { "anthropic" }
+    fn capabilities(&self) -> &ModelCapabilities { self.inner.model.capabilities() }
+    fn config(&self) -> &ModelConfig { self.inner.model.config() }
+    
+    async fn generate(
+        &self,
+        messages: Vec<Message>,
+        options: GenerateOptions,
+    ) -> crate::Result<GenerateResult> {
+        self.inner.model.generate(messages, options).await
+    }
+    
+    async fn stream(
+        &self,
+        messages: Vec<Message>,
+        options: GenerateOptions,
+    ) -> crate::Result<Pin<Box<dyn Stream<Item = crate::Result<StreamChunk>> + Send>>> {
+        // Convert GenerateOptions to StreamOptions
+        let stream_options = StreamOptions {
+            temperature: options.temperature,
+            max_tokens: options.max_tokens,
+            tools: options.tools,
+            stop_sequences: options.stop_sequences,
+        };
+        
+        // Convert Box to Pin<Box>
+        let stream = self.inner.model.stream(messages, stream_options).await?;
+        Ok(Box::pin(stream))
+    }
+    
+    async fn count_tokens(&self, messages: &[Message]) -> crate::Result<u32> {
+        self.inner.model.count_tokens(messages).await
+    }
+    
+    async fn estimate_cost(&self, input_tokens: u32, output_tokens: u32) -> crate::Result<f64> {
+        self.inner.model.estimate_cost(input_tokens, output_tokens).await
+    }
+    
+    fn metadata(&self) -> &ModelMetadata {
+        self.inner.model.metadata()
+    }
+}
+
+#[async_trait]
+impl LanguageModel for AnthropicModelWrapper {
+    async fn generate(
+        &self,
+        messages: Vec<Message>,
+        options: GenerateOptions,
+    ) -> crate::Result<GenerateResult> {
+        self.inner.generate(messages, options).await
+    }
+    
+    async fn stream(
+        &self,
+        messages: Vec<Message>,
+        options: StreamOptions,
+    ) -> crate::Result<Box<dyn futures::Stream<Item = crate::Result<StreamChunk>> + Send + Unpin>> {
+        self.inner.stream(messages, options).await
+    }
+    
+    fn supports_tools(&self) -> bool {
+        self.inner.supports_tools()
+    }
+    
+    fn supports_vision(&self) -> bool {
+        self.inner.supports_vision()
+    }
+    
+    fn supports_caching(&self) -> bool {
+        self.inner.supports_caching()
+    }
+}
+
+#[async_trait]
+impl LanguageModel for AnthropicModelWithProvider {
+    async fn generate(
+        &self,
+        messages: Vec<Message>,
+        options: GenerateOptions,
+    ) -> crate::Result<GenerateResult> {
+        self.model.generate(messages, options).await
+    }
+    
+    async fn stream(
+        &self,
+        messages: Vec<Message>,
+        options: StreamOptions,
+    ) -> crate::Result<Box<dyn futures::Stream<Item = crate::Result<StreamChunk>> + Send + Unpin>> {
+        self.model.stream(messages, options).await
+    }
+    
+    fn supports_tools(&self) -> bool {
+        true
+    }
+    
+    fn supports_vision(&self) -> bool {
+        true
+    }
+    
+    fn supports_caching(&self) -> bool {
+        true
     }
 }
 

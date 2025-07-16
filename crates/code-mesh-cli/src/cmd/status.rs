@@ -7,7 +7,7 @@ use std::fs;
 
 /// Execute the status command
 pub async fn execute(detailed: bool) -> Result<()> {
-    let ui = UI::new();
+    let mut ui = UI::new();
     
     ui.print_logo()?;
     ui.info("Code Mesh System Status")?;
@@ -25,20 +25,20 @@ pub async fn execute(detailed: bool) -> Result<()> {
     ui.println("")?;
 
     // Display system information
-    display_system_info(&ui, detailed).await?;
+    display_system_info(&mut ui, detailed).await?;
     
     // Display health checks
-    display_health_checks(&ui, &health_checks, detailed).await?;
+    display_health_checks(&mut ui, &health_checks, detailed).await?;
     
     // Display configuration status
-    display_config_status(&ui, detailed).await?;
+    display_config_status(&mut ui, detailed).await?;
     
     // Display authentication status
-    display_auth_status(&ui, detailed).await?;
+    display_auth_status(&mut ui, detailed).await?;
     
     // Display recent activity (if detailed)
     if detailed {
-        display_recent_activity(&ui).await?;
+        display_recent_activity(&mut ui).await?;
     }
 
     Ok(())
@@ -258,7 +258,7 @@ async fn check_network() -> HealthStatus {
 }
 
 /// Display system information
-async fn display_system_info(ui: &UI, detailed: bool) -> Result<()> {
+async fn display_system_info(ui: &mut UI, detailed: bool) -> Result<()> {
     ui.info("System Information")?;
     ui.println("")?;
 
@@ -294,7 +294,7 @@ async fn display_system_info(ui: &UI, detailed: bool) -> Result<()> {
 
 /// Display health check results
 async fn display_health_checks(
-    ui: &UI,
+    ui: &mut UI,
     checks: &HashMap<String, HealthStatus>,
     detailed: bool,
 ) -> Result<()> {
@@ -338,7 +338,7 @@ async fn display_health_checks(
 }
 
 /// Display configuration status
-async fn display_config_status(ui: &UI, detailed: bool) -> Result<()> {
+async fn display_config_status(ui: &mut UI, detailed: bool) -> Result<()> {
     ui.info("Configuration")?;
     ui.println("")?;
 
@@ -371,7 +371,7 @@ async fn display_config_status(ui: &UI, detailed: bool) -> Result<()> {
 }
 
 /// Display authentication status
-async fn display_auth_status(ui: &UI, detailed: bool) -> Result<()> {
+async fn display_auth_status(ui: &mut UI, detailed: bool) -> Result<()> {
     ui.info("Authentication")?;
     ui.println("")?;
 
@@ -408,7 +408,7 @@ async fn display_auth_status(ui: &UI, detailed: bool) -> Result<()> {
 }
 
 /// Display recent activity
-async fn display_recent_activity(ui: &UI) -> Result<()> {
+async fn display_recent_activity(ui: &mut UI) -> Result<()> {
     ui.info("Recent Activity")?;
     ui.println("")?;
 

@@ -140,8 +140,9 @@ async fn main() -> Result<()> {
             ).await;
 
             if let Err(e) = result {
-                let ui = cmd::UI::new();
-                let exit_code = cmd::error::ErrorHandler::handle_error(&e, &ui);
+                let mut ui = cmd::UI::new();
+                let cli_error = cmd::CliError::Unknown(e.to_string());
+                let exit_code = cmd::error::ErrorHandler::handle_error(&cli_error, &mut ui);
                 std::process::exit(exit_code);
             }
         }

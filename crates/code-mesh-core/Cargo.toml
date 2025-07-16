@@ -31,6 +31,9 @@ urlencoding = "2.1"
 futures-util = "0.3"
 pin-project = "1.1"
 bytes = "1.6"
+hex = "0.4"
+toml = { workspace = true }
+hostname = "0.3"
 
 # LLM SDK dependencies (optional based on features)
 async-openai = { version = "0.23", optional = true }

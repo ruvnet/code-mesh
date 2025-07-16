@@ -221,7 +221,7 @@ impl Tool for BashTool {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 struct CommandRiskAssessment {
     risk_level: RiskLevel,
     requires_permission: bool,

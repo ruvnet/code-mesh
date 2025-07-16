@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use code_mesh_core::{
-    Session, SessionManager, ProviderRegistry, MessageRole,
-    llm::{GenerateOptions, Message, MessageContent},
+    session::{Session, SessionManager, MessageRole as SessionMessageRole}, 
+    llm::{ProviderRegistry, GenerateOptions, Message, MessageContent, MessageRole},
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use std::path::PathBuf;
@@ -23,7 +23,8 @@ pub async fn execute(
     pb.set_message("Initializing Code Mesh...");
     
     // Initialize storage and session manager
-    let storage = code_mesh_core::storage::FileStorage::default()?;
+    let storage = code_mesh_core::storage::FileStorage::default()
+        .map_err(|e| anyhow::anyhow!("Failed to initialize storage: {}", e))?;
     let mut session_manager = SessionManager::new(Box::new(storage));
     
     // Get or create session
@@ -43,13 +44,15 @@ pub async fn execute(
     // Add user message
     let user_msg = session_manager.add_message(
         &session.id,
-        MessageRole::User,
+        SessionMessageRole::User,
         message.clone()
     ).await?;
     
     // Initialize provider registry
     pb.set_message("Loading providers...");
-    let registry = ProviderRegistry::new();
+    let auth_storage = code_mesh_core::auth::FileAuthStorage::default_with_result()
+        .map_err(|e| anyhow::anyhow!("Failed to initialize auth storage: {}", e))?;
+    let registry = ProviderRegistry::new(std::sync::Arc::new(auth_storage));
     
     // TODO: Register actual providers
     // registry.register(Box::new(AnthropicProvider::new(...)));
@@ -66,7 +69,7 @@ pub async fn execute(
     };
     
     // Get provider and model
-    let provider = registry.get(provider_id)
+    let provider = registry.get(provider_id).await
         .ok_or_else(|| anyhow::anyhow!("Provider not found: {}", provider_id))?;
     
     pb.set_message(format!("Connecting to {}...", provider.name()));
@@ -74,7 +77,20 @@ pub async fn execute(
     
     // Generate response
     pb.set_message("Generating response...");
-    let messages = session.to_llm_messages();
+    let messages = session.messages.iter()
+        .map(|msg| Message {
+            role: match msg.role {
+                SessionMessageRole::System => MessageRole::System,
+                SessionMessageRole::User => MessageRole::User,
+                SessionMessageRole::Assistant => MessageRole::Assistant,
+                SessionMessageRole::Tool => MessageRole::Tool,
+            },
+            content: MessageContent::Text(msg.content.clone()),
+            name: None,
+            tool_calls: None,
+            tool_call_id: None,
+        })
+        .collect();
     let options = GenerateOptions {
         temperature: Some(0.7),
         max_tokens: Some(4096),
@@ -88,7 +104,7 @@ pub async fn execute(
     // Add assistant message
     let assistant_msg = session_manager.add_message(
         &session.id,
-        MessageRole::Assistant,
+        SessionMessageRole::Assistant,
         result.content.clone()
     ).await?;
     

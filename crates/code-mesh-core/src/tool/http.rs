@@ -1,6 +1,6 @@
 //! HTTP client abstraction for unified web requests across native and WASM
 
-use crate::error::CodeMeshError;
+use crate::error::Error;
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
@@ -79,9 +79,9 @@ impl HttpRequest {
         self
     }
 
-    pub fn json<T: Serialize>(mut self, data: &T) -> Result<Self, CodeMeshError> {
+    pub fn json<T: Serialize>(mut self, data: &T) -> Result<Self, Error> {
         let json = serde_json::to_vec(data)
-            .map_err(|e| CodeMeshError::Other(format!("JSON serialization failed: {}", e)))?;
+            .map_err(|e| Error::Other(anyhow::anyhow!("JSON serialization failed: {}", e)))?;
         self.body = Some(json.into());
         self.headers.insert("Content-Type".to_string(), "application/json".to_string());
         Ok(self)
@@ -154,14 +154,14 @@ impl HttpResponse {
         &self.body
     }
 
-    pub fn text(&self) -> Result<String, CodeMeshError> {
+    pub fn text(&self) -> Result<String, Error> {
         String::from_utf8(self.body.to_vec())
-            .map_err(|e| CodeMeshError::Other(format!("Invalid UTF-8: {}", e)))
+            .map_err(|e| Error::Other(anyhow::anyhow!("Invalid UTF-8: {}", e)))
     }
 
-    pub fn json<T: for<'de> Deserialize<'de>>(&self) -> Result<T, CodeMeshError> {
+    pub fn json<T: for<'de> Deserialize<'de>>(&self) -> Result<T, Error> {
         serde_json::from_slice(&self.body)
-            .map_err(|e| CodeMeshError::Other(format!("JSON deserialization failed: {}", e)))
+            .map_err(|e| Error::Other(anyhow::anyhow!("JSON deserialization failed: {}", e)))
     }
 }
 
@@ -169,10 +169,10 @@ impl HttpResponse {
 #[async_trait]
 pub trait HttpInterceptor: Send + Sync {
     /// Called before sending a request
-    async fn before_request(&self, request: &mut HttpRequest) -> Result<(), CodeMeshError>;
+    async fn before_request(&self, request: &mut HttpRequest) -> Result<(), Error>;
     
     /// Called after receiving a response
-    async fn after_response(&self, response: &mut HttpResponse) -> Result<(), CodeMeshError>;
+    async fn after_response(&self, response: &mut HttpResponse) -> Result<(), Error>;
 }
 
 /// Rate limiting interceptor
@@ -192,21 +192,35 @@ impl RateLimiter {
 
 #[async_trait]
 impl HttpInterceptor for RateLimiter {
-    async fn before_request(&self, _request: &mut HttpRequest) -> Result<(), CodeMeshError> {
-        let mut last = self.last_request.lock();
-        if let Some(last_time) = *last {
-            let min_interval = Duration::from_secs_f64(1.0 / self.requests_per_second);
-            let elapsed = last_time.elapsed();
-            if elapsed < min_interval {
-                let sleep_duration = min_interval - elapsed;
-                tokio::time::sleep(sleep_duration).await;
+    async fn before_request(&self, _request: &mut HttpRequest) -> Result<(), Error> {
+        let sleep_duration = {
+            let mut last = self.last_request.lock();
+            if let Some(last_time) = *last {
+                let min_interval = Duration::from_secs_f64(1.0 / self.requests_per_second);
+                let elapsed = last_time.elapsed();
+                if elapsed < min_interval {
+                    Some(min_interval - elapsed)
+                } else {
+                    None
+                }
+            } else {
+                None
             }
+        };
+        
+        if let Some(duration) = sleep_duration {
+            tokio::time::sleep(duration).await;
         }
-        *last = Some(std::time::Instant::now());
+        
+        {
+            let mut last = self.last_request.lock();
+            *last = Some(std::time::Instant::now());
+        }
+        
         Ok(())
     }
 
-    async fn after_response(&self, _response: &mut HttpResponse) -> Result<(), CodeMeshError> {
+    async fn after_response(&self, _response: &mut HttpResponse) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -224,14 +238,14 @@ impl UserAgentInterceptor {
 
 #[async_trait]
 impl HttpInterceptor for UserAgentInterceptor {
-    async fn before_request(&self, request: &mut HttpRequest) -> Result<(), CodeMeshError> {
+    async fn before_request(&self, request: &mut HttpRequest) -> Result<(), Error> {
         if request.user_agent.is_none() {
             request.user_agent = Some(self.user_agent.clone());
         }
         Ok(())
     }
 
-    async fn after_response(&self, _response: &mut HttpResponse) -> Result<(), CodeMeshError> {
+    async fn after_response(&self, _response: &mut HttpResponse) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -307,14 +321,14 @@ impl CookieInterceptor {
 
 #[async_trait]
 impl HttpInterceptor for CookieInterceptor {
-    async fn before_request(&self, request: &mut HttpRequest) -> Result<(), CodeMeshError> {
+    async fn before_request(&self, request: &mut HttpRequest) -> Result<(), Error> {
         if let Some(cookie_header) = self.jar.cookie_header_for_url(&request.url) {
             request.headers.insert("Cookie".to_string(), cookie_header);
         }
         Ok(())
     }
 
-    async fn after_response(&self, response: &mut HttpResponse) -> Result<(), CodeMeshError> {
+    async fn after_response(&self, response: &mut HttpResponse) -> Result<(), Error> {
         // Parse Set-Cookie headers
         for (name, value) in &response.headers {
             if name.to_lowercase() == "set-cookie" {
@@ -330,7 +344,7 @@ impl HttpInterceptor for CookieInterceptor {
 /// HTTP client trait
 #[async_trait]
 pub trait HttpClient: Send + Sync {
-    async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, CodeMeshError>;
+    async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, Error>;
 }
 
 /// HTTP client builder
@@ -392,7 +406,7 @@ impl HttpClientBuilder {
         self
     }
 
-    pub fn build(mut self) -> Result<Box<dyn HttpClient>, CodeMeshError> {
+    pub fn build(mut self) -> Result<Box<dyn HttpClient>, Error> {
         // Add default interceptors
         if let Some(rate) = self.rate_limit {
             self.interceptors.push(Box::new(RateLimiter::new(rate)));
@@ -441,7 +455,7 @@ impl NativeHttpClient {
         default_timeout: Option<Duration>,
         verify_ssl: bool,
         proxy: Option<String>,
-    ) -> Result<Self, CodeMeshError> {
+    ) -> Result<Self, Error> {
         let mut builder = reqwest::Client::builder()
             .danger_accept_invalid_certs(!verify_ssl)
             .redirect(reqwest::redirect::Policy::none());
@@ -452,13 +466,13 @@ impl NativeHttpClient {
 
         if let Some(proxy_url) = proxy {
             let proxy = reqwest::Proxy::all(&proxy_url)
-                .map_err(|e| CodeMeshError::Other(format!("Invalid proxy URL: {}", e)))?;
+                .map_err(|e| Error::Other(anyhow::anyhow!("Invalid proxy URL: {}", e)))?;
             builder = builder.proxy(proxy);
         }
 
         let client = builder
             .build()
-            .map_err(|e| CodeMeshError::Other(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| Error::Other(anyhow::anyhow!("Failed to create HTTP client: {}", e)))?;
 
         Ok(Self { client, interceptors })
     }
@@ -467,7 +481,7 @@ impl NativeHttpClient {
 #[cfg(not(target_arch = "wasm32"))]
 #[async_trait]
 impl HttpClient for NativeHttpClient {
-    async fn execute(&self, mut request: HttpRequest) -> Result<HttpResponse, CodeMeshError> {
+    async fn execute(&self, mut request: HttpRequest) -> Result<HttpResponse, Error> {
         // Apply request interceptors
         for interceptor in &self.interceptors {
             interceptor.before_request(&mut request).await?;
@@ -508,7 +522,7 @@ impl HttpClient for NativeHttpClient {
         let response = req_builder
             .send()
             .await
-            .map_err(|e| CodeMeshError::Other(format!("HTTP request failed: {}", e)))?;
+            .map_err(|e| Error::Other(anyhow::anyhow!("HTTP request failed: {}", e)))?;
 
         let status = response.status().as_u16();
         let headers = response
@@ -520,7 +534,7 @@ impl HttpClient for NativeHttpClient {
         let body = response
             .bytes()
             .await
-            .map_err(|e| CodeMeshError::Other(format!("Failed to read response body: {}", e)))?;
+            .map_err(|e| Error::Other(anyhow::anyhow!("Failed to read response body: {}", e)))?;
 
         let mut http_response = HttpResponse {
             status,
@@ -550,7 +564,7 @@ impl WasmHttpClient {
     pub fn new(
         interceptors: Vec<Box<dyn HttpInterceptor>>,
         default_timeout: Option<Duration>,
-    ) -> Result<Self, CodeMeshError> {
+    ) -> Result<Self, Error> {
         Ok(Self {
             interceptors,
             default_timeout,
@@ -561,7 +575,7 @@ impl WasmHttpClient {
 #[cfg(target_arch = "wasm32")]
 #[async_trait]
 impl HttpClient for WasmHttpClient {
-    async fn execute(&self, mut request: HttpRequest) -> Result<HttpResponse, CodeMeshError> {
+    async fn execute(&self, mut request: HttpRequest) -> Result<HttpResponse, Error> {
         use wasm_bindgen::prelude::*;
         use wasm_bindgen_futures::JsFuture;
         use web_sys::{Request, RequestInit, Response};
@@ -583,44 +597,44 @@ impl HttpClient for WasmHttpClient {
 
         // Create headers
         let headers = web_sys::Headers::new()
-            .map_err(|_| CodeMeshError::Other("Failed to create headers".to_string()))?;
+            .map_err(|_| Error::Other("Failed to create headers".to_string()))?;
 
         for (key, value) in &request.headers {
             headers
                 .set(key, value)
-                .map_err(|_| CodeMeshError::Other(format!("Failed to set header: {}", key)))?;
+                .map_err(|_| Error::Other(format!("Failed to set header: {}", key)))?;
         }
 
         if let Some(ua) = &request.user_agent {
             headers
                 .set("User-Agent", ua)
-                .map_err(|_| CodeMeshError::Other("Failed to set User-Agent".to_string()))?;
+                .map_err(|_| Error::Other("Failed to set User-Agent".to_string()))?;
         }
 
         opts.headers(&headers);
 
         let req = Request::new_with_str_and_init(&request.url.to_string(), &opts)
-            .map_err(|_| CodeMeshError::Other("Failed to create request".to_string()))?;
+            .map_err(|_| Error::Other("Failed to create request".to_string()))?;
 
         let window = web_sys::window().unwrap();
         let resp_value = JsFuture::from(window.fetch_with_request(&req))
             .await
-            .map_err(|_| CodeMeshError::Other("Fetch failed".to_string()))?;
+            .map_err(|_| Error::Other("Fetch failed".to_string()))?;
 
         let resp: Response = resp_value
             .dyn_into()
-            .map_err(|_| CodeMeshError::Other("Invalid response".to_string()))?;
+            .map_err(|_| Error::Other("Invalid response".to_string()))?;
 
         let status = resp.status() as u16;
 
         // Extract headers
         let mut response_headers = HashMap::new();
         let headers_iter = js_sys::try_iter(&resp.headers())
-            .map_err(|_| CodeMeshError::Other("Failed to iterate headers".to_string()))?
-            .ok_or_else(|| CodeMeshError::Other("Headers not iterable".to_string()))?;
+            .map_err(|_| Error::Other("Failed to iterate headers".to_string()))?
+            .ok_or_else(|| Error::Other("Headers not iterable".to_string()))?;
 
         for item in headers_iter {
-            let item = item.map_err(|_| CodeMeshError::Other("Header iteration error".to_string()))?;
+            let item = item.map_err(|_| Error::Other("Header iteration error".to_string()))?;
             let entry = js_sys::Array::from(&item);
             let key = entry.get(0).as_string().unwrap_or_default();
             let value = entry.get(1).as_string().unwrap_or_default();
@@ -630,7 +644,7 @@ impl HttpClient for WasmHttpClient {
         // Read body
         let array_buffer = JsFuture::from(resp.array_buffer())
             .await
-            .map_err(|_| CodeMeshError::Other("Failed to read response body".to_string()))?;
+            .map_err(|_| Error::Other("Failed to read response body".to_string()))?;
 
         let uint8_array = js_sys::Uint8Array::new(&array_buffer);
         let body = uint8_array.to_vec().into();
@@ -689,12 +703,12 @@ pub fn is_safe_url(url: &Url) -> bool {
 }
 
 /// Sanitize URL to prevent SSRF attacks
-pub fn sanitize_url(url_str: &str) -> Result<Url, CodeMeshError> {
+pub fn sanitize_url(url_str: &str) -> Result<Url, Error> {
     let url = Url::parse(url_str)
-        .map_err(|e| CodeMeshError::Other(format!("Invalid URL: {}", e)))?;
+        .map_err(|e| Error::Other(anyhow::anyhow!("Invalid URL: {}", e)))?;
 
     if !is_safe_url(&url) {
-        return Err(CodeMeshError::Other("URL not allowed for security reasons".to_string()));
+        return Err(Error::Other(anyhow::anyhow!("URL not allowed for security reasons")));
     }
 
     Ok(url)

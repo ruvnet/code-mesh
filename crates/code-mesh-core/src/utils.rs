@@ -3,6 +3,7 @@
 use crate::{Error, Result};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use ::url::Url as UrlType;
 
 /// File system utilities
 pub mod fs {
@@ -242,12 +243,12 @@ pub mod url {
     
     /// Validate URL format
     pub fn is_valid_url(s: &str) -> bool {
-        url::Url::parse(s).is_ok()
+        UrlType::parse(s).is_ok()
     }
     
     /// Extract domain from URL
     pub fn extract_domain(url_str: &str) -> Result<String> {
-        let url = url::Url::parse(url_str)
+        let url = UrlType::parse(url_str)
             .map_err(|e| Error::Other(anyhow::anyhow!("Invalid URL: {}", e)))?;
         
         url.host_str()
@@ -257,7 +258,7 @@ pub mod url {
     
     /// Join URL paths safely
     pub fn join_path(base: &str, path: &str) -> Result<String> {
-        let mut url = url::Url::parse(base)
+        let mut url = UrlType::parse(base)
             .map_err(|e| Error::Other(anyhow::anyhow!("Invalid base URL: {}", e)))?;
         
         url = url.join(path)

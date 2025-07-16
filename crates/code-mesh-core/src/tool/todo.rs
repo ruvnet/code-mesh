@@ -412,8 +412,8 @@ impl Tool for TodoTool {
 
             TodoAction::Add { content, priority } => {
                 let task_id = Uuid::new_v4().to_string();
-                let priority = priority.unwrap_or(TaskPriority::Medium);
-                let task = Task::new(task_id.clone(), content.clone(), priority);
+                let priority_value = priority.unwrap_or(TaskPriority::Medium);
+                let task = Task::new(task_id.clone(), content.clone(), priority_value.clone());
                 
                 task_list.add_task(task);
                 self.storage.save_list(task_list.clone()).await;
@@ -424,7 +424,7 @@ impl Tool for TodoTool {
                     metadata: json!({
                         "task_id": task_id,
                         "content": content,
-                        "priority": priority
+                        "priority": priority_value
                     }),
                 })
             },
@@ -446,17 +446,22 @@ impl Tool for TodoTool {
                         task.progress = new_progress.clamp(0.0, 1.0);
                         task.updated_at = Utc::now();
                     }
+                    
+                    let task_content = task.content.clone();
+                    let task_status = task.status.clone();
+                    let task_priority = task.priority.clone();
+                    let task_progress = task.progress;
 
                     self.storage.save_list(task_list).await;
 
                     Ok(ToolResult {
                         title: "Task Updated".to_string(),
-                        output: format!("Updated task: {}", task.content),
+                        output: format!("Updated task: {}", task_content),
                         metadata: json!({
                             "task_id": id,
-                            "status": task.status,
-                            "priority": task.priority,
-                            "progress": task.progress
+                            "status": task_status,
+                            "priority": task_priority,
+                            "progress": task_progress
                         }),
                     })
                 } else {
@@ -498,7 +503,7 @@ impl Tool for TodoTool {
                 if let Some(task) = task_list.get_task_mut(&task_id) {
                     let dependency = TaskDependency {
                         task_id: depends_on.clone(),
-                        dependency_type,
+                        dependency_type: dependency_type.clone(),
                         description,
                     };
                     task.add_dependency(dependency);
@@ -521,11 +526,12 @@ impl Tool for TodoTool {
             TodoAction::AddNote { id, note } => {
                 if let Some(task) = task_list.get_task_mut(&id) {
                     task.add_note(note.clone());
+                    let task_content = task.content.clone();
                     self.storage.save_list(task_list).await;
 
                     Ok(ToolResult {
                         title: "Note Added".to_string(),
-                        output: format!("Added note to task {}: {}", task.content, note),
+                        output: format!("Added note to task {}: {}", task_content, note),
                         metadata: json!({
                             "task_id": id,
                             "note": note

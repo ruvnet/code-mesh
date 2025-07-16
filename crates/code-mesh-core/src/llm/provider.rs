@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::env;
 
 use super::{
     Message, GenerateOptions, GenerateResult, StreamChunk, FinishReason,
@@ -475,20 +476,130 @@ pub struct PeriodUsage {
     pub cost: f64,
 }
 
+/// Cost structure for model pricing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Cost {
+    /// Cost per 1K input tokens
+    pub input_per_1k: f64,
+    
+    /// Cost per 1K output tokens
+    pub output_per_1k: f64,
+    
+    /// Currency code
+    pub currency: String,
+}
+
+/// Model limits structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Limits {
+    /// Maximum context tokens
+    pub max_context_tokens: u32,
+    
+    /// Maximum output tokens
+    pub max_output_tokens: u32,
+}
+
+/// Provider source enum
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProviderSource {
+    /// Official provider
+    Official,
+    
+    /// Community provider
+    Community,
+    
+    /// Custom provider
+    Custom,
+}
+
+/// Provider status enum
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProviderStatus {
+    /// Provider is active
+    Active,
+    
+    /// Provider is in beta
+    Beta,
+    
+    /// Provider is deprecated
+    Deprecated,
+    
+    /// Provider is unavailable
+    Unavailable,
+}
+
+/// Retry configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetryConfig {
+    /// Maximum number of retries
+    pub max_retries: u32,
+    
+    /// Initial retry delay in milliseconds
+    pub initial_delay_ms: u64,
+    
+    /// Maximum retry delay in milliseconds
+    pub max_delay_ms: u64,
+    
+    /// Exponential backoff multiplier
+    pub multiplier: f32,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: 3,
+            initial_delay_ms: 1000,
+            max_delay_ms: 10000,
+            multiplier: 2.0,
+        }
+    }
+}
+
+/// Retry helper function with exponential backoff
+pub async fn retry_with_backoff<F, T, E>(
+    config: &RetryConfig,
+    operation: F,
+) -> Result<T>
+where
+    F: Fn() -> futures::future::BoxFuture<'static, Result<T>>,
+{
+    use tokio::time::{sleep, Duration};
+    
+    let mut attempts = 0;
+    let mut delay = config.initial_delay_ms;
+    
+    loop {
+        match operation().await {
+            Ok(result) => return Ok(result),
+            Err(e) if attempts < config.max_retries => {
+                attempts += 1;
+                sleep(Duration::from_millis(delay)).await;
+                delay = (delay as f32 * config.multiplier) as u64;
+                delay = delay.min(config.max_delay_ms);
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
 /// Registry for managing LLM providers
 pub struct ProviderRegistry {
     providers: HashMap<String, Arc<dyn Provider>>,
     models: HashMap<String, Arc<dyn Model>>,
     default_provider: Option<String>,
+    storage: Arc<dyn crate::auth::AuthStorage>,
 }
 
 impl ProviderRegistry {
-    /// Create a new provider registry
-    pub fn new() -> Self {
+    /// Create a new provider registry with authentication storage
+    pub fn new(storage: Arc<dyn crate::auth::AuthStorage>) -> Self {
         Self {
             providers: HashMap::new(),
             models: HashMap::new(),
             default_provider: None,
+            storage,
         }
     }
 
@@ -646,13 +757,195 @@ impl ProviderRegistry {
         
         Ok(())
     }
-}
-
-impl Default for ProviderRegistry {
-    fn default() -> Self {
-        Self::new()
+    
+    /// Discover providers from environment variables
+    pub async fn discover_from_env(&mut self) -> Result<()> {
+        // Check for Anthropic API key
+        if env::var("ANTHROPIC_API_KEY").is_ok() {
+            if let Ok(provider) = self.create_anthropic_provider().await {
+                self.register_provider(provider)?;
+            }
+        }
+        
+        // Check for OpenAI API key
+        if env::var("OPENAI_API_KEY").is_ok() {
+            if let Ok(provider) = self.create_openai_provider().await {
+                self.register_provider(provider)?;
+            }
+        }
+        
+        // Check for GitHub Copilot authentication
+        if env::var("GITHUB_TOKEN").is_ok() || env::var("GITHUB_COPILOT_TOKEN").is_ok() {
+            if let Ok(provider) = self.create_github_copilot_provider().await {
+                self.register_provider(provider)?;
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Discover providers from storage
+    pub async fn discover_from_storage(&mut self) -> Result<()> {
+        // Check for stored Anthropic credentials
+        if let Ok(Some(_)) = self.storage.get("anthropic").await {
+            if let Ok(provider) = self.create_anthropic_provider().await {
+                self.register_provider(provider)?;
+            }
+        }
+        
+        // Check for stored OpenAI credentials
+        if let Ok(Some(_)) = self.storage.get("openai").await {
+            if let Ok(provider) = self.create_openai_provider().await {
+                self.register_provider(provider)?;
+            }
+        }
+        
+        // Check for stored GitHub Copilot credentials
+        if let Ok(Some(_)) = self.storage.get("github-copilot").await {
+            if let Ok(provider) = self.create_github_copilot_provider().await {
+                self.register_provider(provider)?;
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Initialize all registered providers
+    pub async fn initialize_all(&mut self) -> Result<()> {
+        let provider_ids: Vec<String> = self.providers.keys().cloned().collect();
+        
+        for provider_id in provider_ids {
+            match self.providers.get(&provider_id) {
+                Some(provider) => {
+                    // Perform health check to ensure provider is initialized
+                    if let Err(e) = provider.health_check().await {
+                        tracing::warn!("Failed to initialize provider {}: {}", provider_id, e);
+                    }
+                }
+                None => continue,
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Load models from models.dev API
+    pub async fn load_models_dev(&mut self) -> Result<()> {
+        // This would fetch model configurations from models.dev
+        // For now, we'll use built-in configurations
+        tracing::info!("Loading models from models.dev (using built-in configs for now)");
+        Ok(())
+    }
+    
+    /// Load configurations from a file
+    pub async fn load_configs(&mut self, path: &str) -> Result<()> {
+        use std::path::Path;
+        use tokio::fs;
+        
+        let path = Path::new(path);
+        if !path.exists() {
+            return Err(Error::Other(anyhow::anyhow!(
+                "Configuration file not found: {}",
+                path.display()
+            )));
+        }
+        
+        let contents = fs::read_to_string(path).await?;
+        let configs: HashMap<String, ProviderConfig> = serde_json::from_str(&contents)?;
+        
+        for (provider_id, config) in configs {
+            // We can't mutate through Arc, so we'd need to recreate the provider
+            // For now, just log a warning
+            if self.providers.contains_key(&provider_id) {
+                tracing::warn!("Cannot update config for provider {} - providers are immutable through Arc", provider_id);
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Get a provider by ID (async version)
+    pub async fn get(&self, provider_id: &str) -> Option<Arc<dyn Provider>> {
+        self.providers.get(provider_id).cloned()
+    }
+    
+    /// Parse a model string (format: "provider/model" or just "model")
+    pub fn parse_model(model_str: &str) -> (String, String) {
+        if let Some((provider, model)) = model_str.split_once('/') {
+            (provider.to_string(), model.to_string())
+        } else if let Some((provider, model)) = model_str.split_once(':') {
+            (provider.to_string(), model.to_string())
+        } else {
+            // Default to anthropic for backward compatibility
+            ("anthropic".to_string(), model_str.to_string())
+        }
+    }
+    
+    /// Get the default model for a provider
+    pub async fn get_default_model(&self, provider_id: &str) -> Result<Arc<dyn Model>> {
+        let provider = self.get_provider(provider_id)?;
+        
+        // Try to get the provider's preferred default model
+        let models = provider.list_models().await?;
+        if let Some(default_model) = models.iter().find(|m| m.status == ModelStatus::Active) {
+            provider.get_model(&default_model.id).await
+        } else if let Some(first_model) = models.first() {
+            provider.get_model(&first_model.id).await
+        } else {
+            Err(Error::Other(anyhow::anyhow!(
+                "Provider {} has no available models",
+                provider_id
+            )))
+        }
+    }
+    
+    /// Get list of available providers (those that can authenticate)
+    pub async fn available(&self) -> Vec<String> {
+        let mut available = Vec::new();
+        
+        for (id, provider) in &self.providers {
+            if let Ok(health) = provider.health_check().await {
+                if health.available {
+                    available.push(id.clone());
+                }
+            }
+        }
+        
+        available
+    }
+    
+    /// List all registered provider IDs
+    pub async fn list(&self) -> Vec<String> {
+        self.providers.keys().cloned().collect()
+    }
+    
+    /// Register a provider (async version)
+    pub async fn register(&mut self, provider: Arc<dyn Provider>) {
+        let provider_id = provider.id().to_string();
+        self.providers.insert(provider_id, provider);
+    }
+    
+    // Helper methods to create providers
+    async fn create_anthropic_provider(&self) -> Result<Arc<dyn Provider>> {
+        // This would create an Anthropic provider using the auth storage
+        // For now, return an error as the actual implementation depends on the anthropic module
+        Err(Error::Other(anyhow::anyhow!("Anthropic provider creation not implemented in this context")))
+    }
+    
+    async fn create_openai_provider(&self) -> Result<Arc<dyn Provider>> {
+        // This would create an OpenAI provider using the auth storage
+        // For now, return an error as the actual implementation depends on the openai module
+        Err(Error::Other(anyhow::anyhow!("OpenAI provider creation not implemented in this context")))
+    }
+    
+    async fn create_github_copilot_provider(&self) -> Result<Arc<dyn Provider>> {
+        // This would create a GitHub Copilot provider using the auth storage
+        // For now, return an error as the actual implementation depends on the github_copilot module
+        Err(Error::Other(anyhow::anyhow!("GitHub Copilot provider creation not implemented in this context")))
     }
 }
+
+// Note: Default implementation removed as ProviderRegistry now requires AuthStorage
 
 #[cfg(test)]
 mod tests {
@@ -660,20 +953,21 @@ mod tests {
 
     #[test]
     fn test_parse_model_string() {
-        let registry = ProviderRegistry::new();
-        
+        // Test static method parse_model
         // Test with slash separator
-        let (provider, model) = registry.parse_model_string("anthropic/claude-3-opus").unwrap();
+        let (provider, model) = ProviderRegistry::parse_model("anthropic/claude-3-opus");
         assert_eq!(provider, "anthropic");
         assert_eq!(model, "claude-3-opus");
         
         // Test with colon separator
-        let (provider, model) = registry.parse_model_string("openai:gpt-4").unwrap();
+        let (provider, model) = ProviderRegistry::parse_model("openai:gpt-4");
         assert_eq!(provider, "openai");
         assert_eq!(model, "gpt-4");
         
-        // Test without separator (should fail without default)
-        assert!(registry.parse_model_string("claude-3-opus").is_err());
+        // Test without separator (defaults to anthropic)
+        let (provider, model) = ProviderRegistry::parse_model("claude-3-opus");
+        assert_eq!(provider, "anthropic");
+        assert_eq!(model, "claude-3-opus");
     }
 
     #[test]

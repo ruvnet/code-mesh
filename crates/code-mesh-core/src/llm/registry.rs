@@ -68,15 +68,12 @@ impl LLMRegistry {
             .ok_or_else(|| crate::Error::Other(anyhow::anyhow!("Provider not found: {}", provider_id)))?;
             
         let model = provider.get_model(model_id).await?;
-        let model_arc = Arc::from(model);
         
-        // Cache the model
-        {
-            let mut cache = self.model_cache.write().await;
-            cache.insert(cache_key, model_arc.clone());
-        }
-        
-        Ok(model_arc)
+        // We can't cast Arc<dyn Model> to Arc<dyn LanguageModel> directly
+        // For now, return an error indicating this design issue
+        return Err(crate::Error::Other(anyhow::anyhow!(
+            "Model trait and LanguageModel trait are incompatible - cannot cast between them"
+        )));
     }
     
     /// Get model from string (provider/model or just model)
@@ -88,7 +85,11 @@ impl LLMRegistry {
     /// Get default model for a provider
     pub async fn get_default_model(&self, provider_id: &str) -> crate::Result<Arc<dyn LanguageModel>> {
         let model = self.provider_registry.get_default_model(provider_id).await?;
-        Ok(Arc::from(model))
+        // We can't cast Arc<dyn Model> to Arc<dyn LanguageModel> directly
+        // For now, return an error indicating this design issue
+        return Err(crate::Error::Other(anyhow::anyhow!(
+            "Model trait and LanguageModel trait are incompatible - cannot cast between them"
+        )));
     }
     
     /// Get the best available model across all providers
@@ -129,7 +130,13 @@ impl LLMRegistry {
         let provider = self.provider_registry.get(provider_id).await
             .ok_or_else(|| crate::Error::Other(anyhow::anyhow!("Provider not found: {}", provider_id)))?;
             
-        Ok(provider.models().values().cloned().collect())
+        let model_infos = provider.list_models().await?;
+        
+        // Convert ModelInfo to ModelConfig
+        Ok(model_infos.into_iter().map(|info| ModelConfig {
+            model_id: info.id,
+            ..Default::default()
+        }).collect())
     }
     
     /// Clear model cache
@@ -161,7 +168,7 @@ impl LLMRegistry {
 
 /// Helper function to create an LLM registry with file-based auth storage
 pub async fn create_default_registry() -> crate::Result<LLMRegistry> {
-    let storage = Arc::new(crate::auth::FileAuthStorage::default()?);
+    let storage = Arc::new(crate::auth::FileAuthStorage::default_with_result()?) as Arc<dyn AuthStorage>;
     let mut registry = LLMRegistry::new(storage);
     registry.initialize().await?;
     Ok(registry)

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// Execute the init command
 pub async fn execute(path: &str) -> Result<()> {
-    let ui = UI::new();
+    let mut ui = UI::new();
     let project_path = PathBuf::from(path);
     
     ui.print_logo()?;
@@ -90,7 +90,7 @@ pub async fn execute(path: &str) -> Result<()> {
     ui.println("")?;
 
     // Show next steps
-    show_next_steps(&ui, &project_path)?;
+    show_next_steps(&mut ui, &project_path)?;
 
     Ok(())
 }
@@ -178,7 +178,7 @@ fn update_gitignore(project_path: &Path) -> Result<()> {
 
     // Check if Code Mesh entries already exist
     if existing_content.contains("# Code Mesh") {
-        return Ok(); // Already configured
+        return Ok(()); // Already configured
     }
 
     // Append Code Mesh entries
@@ -245,7 +245,7 @@ fn ensure_global_config() -> Result<()> {
 }
 
 /// Show next steps to the user
-fn show_next_steps(ui: &UI, project_path: &Path) -> Result<()> {
+fn show_next_steps(ui: &mut UI, project_path: &Path) -> Result<()> {
     ui.info("Next steps:")?;
     ui.println("")?;
     

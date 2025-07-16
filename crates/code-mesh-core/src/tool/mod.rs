@@ -28,7 +28,8 @@ pub mod glob;
 pub mod task;
 pub mod todo;
 
-// Web tools
+// Web and HTTP tools
+pub mod http;
 pub mod web;
 
 // Re-exports for easy access
@@ -164,8 +165,8 @@ impl ToolRegistry {
         }
         
         // Register task and todo tools
-        registry.register(Box::new(TaskTool));
-        registry.register(Box::new(TodoTool));
+        registry.register(Box::new(TaskTool::new()));
+        registry.register(Box::new(TodoTool::new()));
         
         Ok(registry)
     }

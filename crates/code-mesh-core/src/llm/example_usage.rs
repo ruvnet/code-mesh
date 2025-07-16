@@ -129,7 +129,7 @@ pub async fn example_authentication_setup() -> crate::Result<()> {
     use std::sync::Arc;
     
     // Set up authentication storage
-    let storage = Arc::new(FileAuthStorage::default()?);
+    let storage = Arc::new(FileAuthStorage::default_with_result()?) as Arc<dyn AuthStorage>;
     
     // Store API key for OpenAI
     if let Ok(api_key) = env::var("OPENAI_API_KEY") {

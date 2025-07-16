@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 /// Execute the models command
 pub async fn execute(provider_filter: Option<String>) -> Result<()> {
-    let ui = UI::new();
+    let mut ui = UI::new();
     
     ui.info("Available AI models")?;
     ui.println("")?;
@@ -14,10 +14,10 @@ pub async fn execute(provider_filter: Option<String>) -> Result<()> {
     let models = get_available_models().await?;
     
     // Filter by provider if specified
-    let filtered_models: HashMap<String, Vec<ModelInfo>> = if let Some(provider) = provider_filter {
+    let filtered_models: HashMap<String, Vec<ModelInfo>> = if let Some(ref provider) = provider_filter {
         models
             .into_iter()
-            .filter(|(p, _)| p == &provider)
+            .filter(|(p, _)| p == provider)
             .collect()
     } else {
         models
@@ -28,12 +28,12 @@ pub async fn execute(provider_filter: Option<String>) -> Result<()> {
         if let Some(provider) = provider_filter {
             ui.info(&format!("Provider '{}' not found or has no models", provider))?;
         }
-        return Ok();
+        return Ok(());
     }
 
     // Display models grouped by provider
     for (provider_name, provider_models) in filtered_models {
-        ui.println(&ui.theme.bold.apply_to(&provider_name).to_string())?;
+        ui.println(&console::Style::new().bold().apply_to(&provider_name).to_string())?;
         ui.println(&"─".repeat(provider_name.len()))?;
 
         if provider_models.is_empty() {
@@ -69,13 +69,13 @@ pub async fn execute(provider_filter: Option<String>) -> Result<()> {
                 ]);
             }
 
-            table.print(&ui)?;
+            table.print(&mut ui)?;
         }
         ui.println("")?;
     }
 
     // Show authentication status
-    show_auth_status(&ui).await?;
+    show_auth_status(&mut ui).await?;
 
     Ok(())
 }
@@ -258,7 +258,7 @@ async fn is_provider_available(provider: &str) -> bool {
 }
 
 /// Show authentication status
-async fn show_auth_status(ui: &UI) -> Result<()> {
+async fn show_auth_status(ui: &mut UI) -> Result<()> {
     ui.info("Authentication Status")?;
     ui.println("")?;
 
@@ -286,7 +286,7 @@ async fn show_auth_status(ui: &UI) -> Result<()> {
         table.add_row(vec![provider_name.to_string(), status, source]);
     }
 
-    table.print(ui)?;
+    table.print(&mut *ui)?;
 
     ui.println("")?;
     ui.dim("Run 'code-mesh auth login' to set up authentication")?;

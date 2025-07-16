@@ -65,7 +65,7 @@ type BoxedHandler = Box<dyn EventHandlerDyn + Send + Sync>;
 /// Dynamic event handler trait for type erasure
 #[async_trait]
 trait EventHandlerDyn {
-    async fn handle_dyn(&self, event: &dyn Any) -> Result<()>;
+    async fn handle_dyn(&self, event: &(dyn Any + Send + Sync)) -> Result<()>;
     fn priority(&self) -> i32;
     fn early(&self) -> bool;
 }
@@ -78,7 +78,7 @@ struct EventHandlerWrapper<E: Event, H: EventHandler<E>> {
 
 #[async_trait]
 impl<E: Event, H: EventHandler<E>> EventHandlerDyn for EventHandlerWrapper<E, H> {
-    async fn handle_dyn(&self, event: &dyn Any) -> Result<()> {
+    async fn handle_dyn(&self, event: &(dyn Any + Send + Sync)) -> Result<()> {
         if let Some(typed_event) = event.downcast_ref::<E>() {
             self.handler.handle(typed_event).await
         } else {
@@ -201,7 +201,7 @@ impl EventBus {
             let handlers = self.handlers.read().await;
             if let Some(handlers_list) = handlers.get(&type_id) {
                 for handler in handlers_list {
-                    if let Err(e) = handler.handle_dyn(&event).await {
+                    if let Err(e) = handler.handle_dyn(&event as &(dyn Any + Send + Sync)).await {
                         tracing::error!("Error handling event: {}", e);
                         // Continue processing other handlers
                     }
@@ -223,7 +223,7 @@ impl EventBus {
             let handlers = self.handlers.read();
             if let Some(handlers_list) = handlers.get(&type_id) {
                 for handler in handlers_list {
-                    if let Err(e) = handler.handle_dyn(&event).await {
+                    if let Err(e) = handler.handle_dyn(&event as &(dyn Any + Send + Sync)).await {
                         tracing::error!("Error handling event: {}", e);
                         // Continue processing other handlers
                     }

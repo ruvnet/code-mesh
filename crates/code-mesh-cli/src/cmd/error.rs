@@ -1,6 +1,6 @@
 //! Error handling for the CLI
 
-use code_mesh_core::error::CoreError;
+use code_mesh_core::Error as CoreError;
 use std::fmt;
 use thiserror::Error;
 
@@ -59,6 +59,12 @@ pub enum CliError {
 
     #[error("Unknown error: {0}")]
     Unknown(String),
+}
+
+impl From<anyhow::Error> for CliError {
+    fn from(err: anyhow::Error) -> Self {
+        CliError::Unknown(err.to_string())
+    }
 }
 
 impl CliError {
@@ -151,7 +157,7 @@ where
 pub struct ErrorHandler;
 
 impl ErrorHandler {
-    pub fn handle_error(error: &CliError, ui: &crate::cmd::ui::UI) -> i32 {
+    pub fn handle_error(error: &CliError, ui: &mut crate::cmd::ui::UI) -> i32 {
         // Print user-friendly error message
         let _ = ui.error(&error.user_message());
 

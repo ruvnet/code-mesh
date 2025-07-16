@@ -3,14 +3,16 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 pub mod anthropic;
 pub mod storage;
 pub mod github_copilot;
+pub mod manager;
 
-pub use anthropic::{AnthropicAuth, AnthropicMode};
-pub use storage::FileAuthStorage;
+pub use anthropic::AnthropicAuth;
 pub use github_copilot::{GitHubCopilotAuth, GitHubCopilotAuthResult};
+pub use manager::AuthManager;
 
 /// Authentication trait for provider credentials
 #[async_trait]
@@ -102,3 +104,33 @@ pub trait AuthStorage: Send + Sync {
     /// List all stored provider IDs
     async fn list(&self) -> crate::Result<Vec<String>>;
 }
+
+/// File-based authentication storage
+pub struct FileAuthStorage {
+    path: PathBuf,
+}
+
+impl FileAuthStorage {
+    /// Create a new file-based auth storage
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+    
+    /// Create default file-based auth storage with error handling
+    pub fn default_with_result() -> crate::Result<Self> {
+        let home_dir = dirs::home_dir()
+            .ok_or_else(|| crate::Error::Storage(crate::storage::StorageError::Other("Could not determine home directory".to_string())))?;
+        let path = home_dir.join(".code-mesh").join("auth.json");
+        Ok(Self::new(path))
+    }
+}
+
+impl Default for FileAuthStorage {
+    fn default() -> Self {
+        // Use a default path in the user's home directory
+        let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+        let path = home_dir.join(".code-mesh").join("auth.json");
+        Self::new(path)
+    }
+}
+

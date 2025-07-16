@@ -1,10 +1,9 @@
 //! User Interface utilities for the CLI
 
-use anyhow::Result;
-use colored::*;
+use crate::cmd::{CliError, Result};
 use console::{Style, Term};
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
-use indicatif::{ProgressBar, ProgressStyle, Spinner};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::fmt::Display;
 use std::io::{self, Write};
 use std::time::Duration;
@@ -50,7 +49,7 @@ impl UI {
     }
 
     /// Print the Code Mesh logo
-    pub fn print_logo(&self) -> Result<()> {
+    pub fn print_logo(&mut self) -> Result<()> {
         let logo = vec![
             "╔═══════════════════════════════════════╗",
             "║           CODE MESH CLI               ║",
@@ -66,72 +65,78 @@ impl UI {
     }
 
     /// Print a line to stderr with newline
-    pub fn println(&self, message: &str) -> Result<()> {
+    pub fn println(&mut self, message: &str) -> Result<()> {
         writeln!(self.term, "{}", message)?;
         Ok(())
     }
 
     /// Print to stderr without newline
-    pub fn print(&self, message: &str) -> Result<()> {
+    pub fn print(&mut self, message: &str) -> Result<()> {
         write!(self.term, "{}", message)?;
         self.term.flush()?;
         Ok(())
     }
 
     /// Print success message
-    pub fn success(&self, message: &str) -> Result<()> {
+    pub fn success(&mut self, message: &str) -> Result<()> {
         self.println(&format!("✓ {}", self.theme.success.apply_to(message)))?;
         Ok(())
     }
 
     /// Print error message
-    pub fn error(&self, message: &str) -> Result<()> {
+    pub fn error(&mut self, message: &str) -> Result<()> {
         self.println(&format!("✗ {}", self.theme.error.apply_to(message)))?;
         Ok(())
     }
 
     /// Print warning message
-    pub fn warning(&self, message: &str) -> Result<()> {
+    pub fn warning(&mut self, message: &str) -> Result<()> {
         self.println(&format!("⚠ {}", self.theme.warning.apply_to(message)))?;
         Ok(())
     }
 
     /// Print info message
-    pub fn info(&self, message: &str) -> Result<()> {
+    pub fn info(&mut self, message: &str) -> Result<()> {
         self.println(&format!("ℹ {}", self.theme.info.apply_to(message)))?;
         Ok(())
     }
 
     /// Print dimmed text
-    pub fn dim(&self, message: &str) -> Result<()> {
+    pub fn dim(&mut self, message: &str) -> Result<()> {
         self.println(&self.theme.dim.apply_to(message).to_string())?;
         Ok(())
     }
 
     /// Create a confirmation prompt
     pub fn confirm(&self, message: &str, default: bool) -> Result<bool> {
-        Ok(Confirm::with_theme(&ColorfulTheme::default())
+        let theme = ColorfulTheme::default();
+        Ok(Confirm::with_theme(&theme)
             .with_prompt(message)
             .default(default)
-            .interact()?)
+            .interact()
+            .map_err(|e| CliError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?)
     }
 
     /// Create a text input prompt
     pub fn input(&self, message: &str, default: Option<&str>) -> Result<String> {
-        let mut input = Input::<String>::with_theme(&ColorfulTheme::default()).with_prompt(message);
+        let theme = ColorfulTheme::default();
+        let mut input = Input::<String>::with_theme(&theme).with_prompt(message);
         
         if let Some(default) = default {
             input = input.default(default.to_string());
         }
         
-        Ok(input.interact()?)
+        Ok(input.interact()
+            .map_err(|e| CliError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?)
     }
 
     /// Create a password input prompt
     pub fn password(&self, message: &str) -> Result<String> {
-        Ok(Password::with_theme(&ColorfulTheme::default())
+        let theme = ColorfulTheme::default();
+        Ok(Password::with_theme(&theme)
             .with_prompt(message)
-            .interact()?)
+            .interact()
+            .map_err(|e| CliError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?)
     }
 
     /// Create a selection prompt
@@ -139,10 +144,12 @@ impl UI {
     where
         T: Display,
     {
-        Ok(Select::with_theme(&ColorfulTheme::default())
+        let theme = ColorfulTheme::default();
+        Ok(Select::with_theme(&theme)
             .with_prompt(message)
             .items(items)
-            .interact()?)
+            .interact()
+            .map_err(|e| CliError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?)
     }
 
     /// Create a progress bar
@@ -159,20 +166,21 @@ impl UI {
     }
 
     /// Create a spinner
-    pub fn spinner(&self, message: &str) -> Spinner {
-        let spinner = Spinner::new(
-            indicatif::ProgressStyle::default_spinner()
+    pub fn spinner(&self, message: &str) -> ProgressBar {
+        let spinner = ProgressBar::new_spinner();
+        spinner.set_style(
+            ProgressStyle::default_spinner()
                 .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
                 .template("{spinner:.cyan} {msg}")
-                .unwrap(),
-            message.to_string(),
+                .unwrap()
         );
+        spinner.set_message(message.to_string());
         spinner.enable_steady_tick(Duration::from_millis(80));
         spinner
     }
 
     /// Clear the current line
-    pub fn clear_line(&self) -> Result<()> {
+    pub fn clear_line(&mut self) -> Result<()> {
         self.term.clear_line()?;
         Ok(())
     }
@@ -251,7 +259,7 @@ impl Table {
         self.rows.push(row);
     }
 
-    pub fn print(&self, ui: &UI) -> Result<()> {
+    pub fn print(&self, ui: &mut UI) -> Result<()> {
         // Print headers
         let header_line = self
             .headers

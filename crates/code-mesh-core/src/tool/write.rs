@@ -155,7 +155,7 @@ impl Tool for WriteTool {
                     "bytes_written": byte_count,
                     "was_new_file": is_new_file,
                     "backup_created": backup_path.is_some(),
-                    "backup_path": backup_path.map(|p| p.to_string_lossy().to_string()),
+                    "backup_path": backup_path.as_ref().map(|p| p.to_string_lossy().to_string()),
                     "timestamp": Utc::now().to_rfc3339(),
                     "content_preview": params.content.lines().take(3).collect::<Vec<_>>().join("\n")
                 });
@@ -176,8 +176,8 @@ impl Tool for WriteTool {
             }
             Err(e) => {
                 // Restore from backup if write failed and we have one
-                if let Some(backup) = backup_path {
-                    if let Err(restore_err) = fs::rename(&backup, &path).await {
+                if let Some(backup) = &backup_path {
+                    if let Err(restore_err) = fs::rename(backup, &path).await {
                         tracing::warn!("Failed to restore backup after write failure: {}", restore_err);
                     }
                 }

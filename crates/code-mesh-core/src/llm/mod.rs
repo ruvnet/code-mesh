@@ -14,8 +14,12 @@ pub mod registry;
 #[cfg(test)]
 mod anthropic_test;
 
-pub use provider::{Provider, ProviderConfig, ProviderRegistry, ModelConfig, ModelCapabilities, Cost, Limits, ProviderSource, ProviderStatus, RetryConfig, retry_with_backoff};
-pub use model::Model;
+pub use provider::{
+    Provider, ProviderConfig, ProviderRegistry, ModelConfig, ModelCapabilities, 
+    Cost, Limits, ProviderSource, ProviderStatus, RetryConfig, retry_with_backoff,
+    ModelInfo, ModelLimits, ModelPricing, ModelStatus, ProviderHealth, RateLimitInfo, UsageStats,
+    Model
+};
 pub use anthropic::{AnthropicProvider, AnthropicModel, AnthropicModelWithProvider};
 pub use openai::{OpenAIProvider, OpenAIModel, OpenAIModelWithProvider, AzureOpenAIProvider, AzureOpenAIModelWithProvider};
 pub use github_copilot::{GitHubCopilotProvider, GitHubCopilotModel, GitHubCopilotModelWithProvider};

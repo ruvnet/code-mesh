@@ -164,6 +164,7 @@ pub mod tool;
 pub mod config;
 pub mod error;
 pub mod events;
+pub mod features;
 pub mod permission;
 pub mod sync;
 pub mod utils;
@@ -202,15 +203,6 @@ pub use sync::{AsyncMutex, AsyncRwLock, Debouncer};
 // Version and build information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Feature flags for runtime detection
-pub mod features {
-    pub const HAS_TOKIO: bool = cfg!(feature = "native");
-    pub const HAS_WASM: bool = cfg!(feature = "wasm");
-    pub const HAS_WEB: bool = cfg!(feature = "web");
-    pub const HAS_OPENAI: bool = cfg!(feature = "openai");
-    pub const HAS_ANTHROPIC: bool = cfg!(feature = "anthropic");
-    pub const HAS_MISTRAL: bool = cfg!(feature = "mistral");
-}
 
 /// Runtime compatibility layer
 #[cfg(feature = "native")]

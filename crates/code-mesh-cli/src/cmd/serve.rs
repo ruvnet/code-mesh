@@ -1,22 +1,21 @@
 //! Serve command implementation - API server functionality
 
-use crate::cmd::{CliError, Result, UI, Config};
+use crate::cmd::{CliError, UI, Config};
+use crate::cmd::Result as CliResult;
 use axum::{
-    extract::Query,
     http::StatusCode,
     response::Json,
     routing::{get, post},
     Router,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tokio::net::TcpListener;
 
 /// Execute the serve command
-pub async fn execute(host: &str, port: u16) -> Result<()> {
-    let ui = UI::new();
+pub async fn execute(host: &str, port: u16) -> CliResult<()> {
+    let mut ui = UI::new();
     
     ui.print_logo()?;
     ui.info("Starting Code Mesh API server")?;
@@ -25,7 +24,7 @@ pub async fn execute(host: &str, port: u16) -> Result<()> {
     crate::cmd::utils::Validator::validate_port(port)?;
     
     // Load configuration
-    let config = Config::load()?;
+    let _config = Config::load()?;
     
     // Check authentication
     let auth_manager = code_mesh_core::auth::AuthManager::new().await?;
@@ -59,7 +58,7 @@ pub async fn execute(host: &str, port: u16) -> Result<()> {
         tokio::signal::ctrl_c()
             .await
             .expect("Failed to install CTRL+C signal handler");
-        ui.info("Received shutdown signal, stopping server...").ok();
+        eprintln!("Received shutdown signal, stopping server...");
     };
     
     // Run server with graceful shutdown
@@ -73,7 +72,7 @@ pub async fn execute(host: &str, port: u16) -> Result<()> {
 }
 
 /// Create the API router
-async fn create_router() -> Result<Router> {
+async fn create_router() -> CliResult<Router> {
     let api_router = Router::new()
         .route("/health", get(health_check))
         .route("/chat", post(chat_endpoint))
@@ -118,10 +117,10 @@ async fn health_check() -> Json<ApiResponse<HealthStatus>> {
 /// Chat endpoint - placeholder implementation
 async fn chat_endpoint(
     Json(request): Json<ChatRequest>,
-) -> Result<Json<ApiResponse<ChatResponse>>, ApiError> {
+) -> Result<Json<ApiResponse<ChatResponse>>, StatusCode> {
     // Validate request
     if request.message.trim().is_empty() {
-        return Err(ApiError::BadRequest("Message cannot be empty".to_string()));
+        return Err(StatusCode::BAD_REQUEST);
     }
     
     // TODO: Implement actual chat logic using code-mesh-core
@@ -138,7 +137,7 @@ async fn chat_endpoint(
 }
 
 /// List sessions endpoint - placeholder implementation
-async fn list_sessions() -> Result<Json<ApiResponse<Vec<SessionInfo>>>, ApiError> {
+async fn list_sessions() -> Result<Json<ApiResponse<Vec<SessionInfo>>>, StatusCode> {
     // TODO: Implement actual session listing using code-mesh-core
     let sessions = vec![
         SessionInfo {
@@ -156,7 +155,7 @@ async fn list_sessions() -> Result<Json<ApiResponse<Vec<SessionInfo>>>, ApiError
 /// Create session endpoint - placeholder implementation
 async fn create_session(
     Json(request): Json<CreateSessionRequest>,
-) -> Result<Json<ApiResponse<SessionInfo>>, ApiError> {
+) -> Result<Json<ApiResponse<SessionInfo>>, StatusCode> {
     // TODO: Implement actual session creation using code-mesh-core
     let session = SessionInfo {
         id: crate::cmd::utils::Utils::generate_id(),
@@ -170,7 +169,7 @@ async fn create_session(
 }
 
 /// List models endpoint - placeholder implementation
-async fn list_models() -> Result<Json<ApiResponse<Vec<ModelInfo>>>, ApiError> {
+async fn list_models() -> Result<Json<ApiResponse<Vec<ModelInfo>>>, StatusCode> {
     // TODO: Implement actual model listing using code-mesh-core
     let models = vec![
         ModelInfo {
@@ -195,7 +194,7 @@ async fn list_models() -> Result<Json<ApiResponse<Vec<ModelInfo>>>, ApiError> {
 }
 
 /// List providers endpoint - placeholder implementation
-async fn list_providers() -> Result<Json<ApiResponse<Vec<ProviderInfo>>>, ApiError> {
+async fn list_providers() -> Result<Json<ApiResponse<Vec<ProviderInfo>>>, StatusCode> {
     // TODO: Implement actual provider listing using code-mesh-core
     let providers = vec![
         ProviderInfo {
@@ -314,24 +313,3 @@ struct ProviderInfo {
     models: Vec<String>,
 }
 
-// Error handling
-
-#[derive(Debug)]
-enum ApiError {
-    BadRequest(String),
-    NotFound(String),
-    InternalError(String),
-}
-
-impl axum::response::IntoResponse for ApiError {
-    fn into_response(self) -> axum::response::Response {
-        let (status, message) = match self {
-            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
-            ApiError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-        };
-        
-        let body = Json(ApiResponse::<()>::error(message));
-        (status, body).into_response()
-    }
-}
