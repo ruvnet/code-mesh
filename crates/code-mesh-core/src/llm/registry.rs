@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use anyhow;
 
 use super::{
     ProviderRegistry, ModelConfig, ProviderConfig, ProviderSource, 
@@ -64,7 +65,7 @@ impl LLMRegistry {
         
         // Get provider and create model
         let provider = self.provider_registry.get(provider_id).await
-            .ok_or_else(|| crate::Error::Other(anyhow::anyhow!(\"Provider not found: {}\", provider_id)))?;
+            .ok_or_else(|| crate::Error::Other(anyhow::anyhow!("Provider not found: {}", provider_id)))?;
             
         let model = provider.get_model(model_id).await?;
         let model_arc = Arc::from(model);
@@ -95,11 +96,11 @@ impl LLMRegistry {
         let available_providers = self.provider_registry.available().await;
         
         if available_providers.is_empty() {
-            return Err(crate::Error::Other(anyhow::anyhow!(\"No providers available\")));
+            return Err(crate::Error::Other(anyhow::anyhow!("No providers available")));
         }
         
         // Priority order for providers
-        let provider_priority = [\"anthropic\", \"openai\", \"github-copilot\"];
+        let provider_priority = ["anthropic", "openai", "github-copilot"];
         
         for provider_id in provider_priority {
             if available_providers.contains(&provider_id.to_string()) {
@@ -126,7 +127,7 @@ impl LLMRegistry {
     /// List models for a provider
     pub async fn list_models(&self, provider_id: &str) -> crate::Result<Vec<ModelConfig>> {
         let provider = self.provider_registry.get(provider_id).await
-            .ok_or_else(|| crate::Error::Other(anyhow::anyhow!(\"Provider not found: {}\", provider_id)))?;
+            .ok_or_else(|| crate::Error::Other(anyhow::anyhow!("Provider not found: {}", provider_id)))?;
             
         Ok(provider.models().values().cloned().collect())
     }
@@ -141,7 +142,7 @@ impl LLMRegistry {
     pub async fn cache_stats(&self) -> HashMap<String, usize> {
         let cache = self.model_cache.read().await;
         let mut stats = HashMap::new();
-        stats.insert(\"cached_models\".to_string(), cache.len());
+        stats.insert("cached_models".to_string(), cache.len());
         stats
     }
     
@@ -182,7 +183,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_creation() {
         let temp_dir = tempdir().unwrap();
-        let auth_path = temp_dir.path().join(\"auth.json\");
+        let auth_path = temp_dir.path().join("auth.json");
         let storage = Arc::new(FileAuthStorage::new(auth_path));
         
         let registry = LLMRegistry::new(storage);
@@ -195,18 +196,18 @@ mod tests {
     #[tokio::test]
     async fn test_cache_operations() {
         let temp_dir = tempdir().unwrap();
-        let auth_path = temp_dir.path().join(\"auth.json\");
+        let auth_path = temp_dir.path().join("auth.json");
         let storage = Arc::new(FileAuthStorage::new(auth_path));
         
         let registry = LLMRegistry::new(storage);
         
         // Check empty cache
         let stats = registry.cache_stats().await;
-        assert_eq!(stats.get(\"cached_models\"), Some(&0));
+        assert_eq!(stats.get("cached_models"), Some(&0));
         
         // Clear empty cache
         registry.clear_cache().await;
         let stats = registry.cache_stats().await;
-        assert_eq!(stats.get(\"cached_models\"), Some(&0));
+        assert_eq!(stats.get("cached_models"), Some(&0));
     }
 }

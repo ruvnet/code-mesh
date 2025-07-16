@@ -133,13 +133,6 @@ harness = false
 [[bench]]
 name = "integration_benchmarks"
 harness = false
-proptest = { workspace = true }
-criterion = { workspace = true }
-wiremock = { workspace = true }
-assert_fs = { workspace = true }
-predicates = { workspace = true }
-insta = { workspace = true }
-rstest = { workspace = true }
 
 [[bench]]
 name = "performance_benchmarks"
