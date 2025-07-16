@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
+pub mod manager;
+pub use manager::{SessionManager, SessionInfo};
+
 /// Session represents a conversation with the AI
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {

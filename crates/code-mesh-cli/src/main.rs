@@ -2,11 +2,11 @@
 
 use clap::{Parser, Subcommand};
 use anyhow::Result;
-use tracing::{info, error};
+use tracing::info;
 use tracing_subscriber;
 
 mod cmd;
-mod tui;
+// mod tui; // TODO: Implement TUI
 
 #[derive(Parser)]
 #[command(name = "code-mesh")]
@@ -111,7 +111,14 @@ async fn main() -> Result<()> {
     };
     
     tracing_subscriber::fmt()
-        .with_env_filter(log_level)
+        .with_max_level(match log_level {
+            "trace" => tracing::Level::TRACE,
+            "debug" => tracing::Level::DEBUG,
+            "info" => tracing::Level::INFO,
+            "warn" => tracing::Level::WARN,
+            "error" => tracing::Level::ERROR,
+            _ => tracing::Level::INFO,
+        })
         .init();
     
     // Execute command
@@ -124,13 +131,19 @@ async fn main() -> Result<()> {
             mode 
         } => {
             info!("Running Code Mesh");
-            cmd::run::execute(
+            let result = cmd::run::execute(
                 message.join(" "),
                 continue_session,
                 session,
                 model,
                 mode,
-            ).await?;
+            ).await;
+
+            if let Err(e) = result {
+                let ui = cmd::UI::new();
+                let exit_code = cmd::error::ErrorHandler::handle_error(&e, &ui);
+                std::process::exit(exit_code);
+            }
         }
         
         Commands::Auth { command } => {
@@ -171,74 +184,4 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-mod cmd {
-    pub mod run {
-        use anyhow::Result;
-        
-        pub async fn execute(
-            _message: String,
-            _continue_session: bool,
-            _session: Option<String>,
-            _model: Option<String>,
-            _mode: Option<String>,
-        ) -> Result<()> {
-            println!("Run command not yet implemented");
-            Ok(())
-        }
-    }
-    
-    pub mod auth {
-        use anyhow::Result;
-        
-        pub async fn login() -> Result<()> {
-            println!("Auth login not yet implemented");
-            Ok(())
-        }
-        
-        pub async fn logout(_provider: &str) -> Result<()> {
-            println!("Auth logout not yet implemented");
-            Ok(())
-        }
-        
-        pub async fn list() -> Result<()> {
-            println!("Auth list not yet implemented");
-            Ok(())
-        }
-    }
-    
-    pub mod init {
-        use anyhow::Result;
-        
-        pub async fn execute(_path: &str) -> Result<()> {
-            println!("Init command not yet implemented");
-            Ok(())
-        }
-    }
-    
-    pub mod status {
-        use anyhow::Result;
-        
-        pub async fn execute(_detailed: bool) -> Result<()> {
-            println!("Status command not yet implemented");
-            Ok(())
-        }
-    }
-    
-    pub mod serve {
-        use anyhow::Result;
-        
-        pub async fn execute(_host: &str, _port: u16) -> Result<()> {
-            println!("Serve command not yet implemented");
-            Ok(())
-        }
-    }
-    
-    pub mod models {
-        use anyhow::Result;
-        
-        pub async fn execute(_provider: Option<String>) -> Result<()> {
-            println!("Models command not yet implemented");
-            Ok(())
-        }
-    }
-}
+// Command implementations are in cmd/ module

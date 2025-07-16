@@ -27,17 +27,81 @@ web-sys = { version = "0.3", features = [
     "Headers",
     "AbortController",
     "AbortSignal",
+    "Storage",
+    "Location",
+    "History",
+    "Navigator",
+    "Clipboard",
+    "ClipboardEvent",
+    "File",
+    "FileReader",
+    "Blob",
+    "BlobPropertyBag",
+    "IndexedDb",
+    "IdbDatabase",
+    "IdbObjectStore",
+    "IdbTransaction",
+    "IdbRequest",
+    "IdbKeyRange",
+    "Worker",
+    "ServiceWorker",
+    "ServiceWorkerContainer",
+    "MessageEvent",
+    "EventTarget",
+    "Event",
+    "CustomEvent",
+    "ProgressEvent",
+    "ErrorEvent",
+    "Performance",
+    "PerformanceEntry",
+    "PerformanceMark",
+    "PerformanceMeasure",
+    "Url",
+    "UrlSearchParams",
+    "Element",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlTextAreaElement",
+    "HtmlSelectElement",
+    "DomRect",
+    "DomTokenList",
+    "CssStyleDeclaration",
+    "FormData",
+    "TextEncoder",
+    "TextDecoder",
+    "ReadableStream",
+    "WritableStream",
+    "TransformStream",
 ] }
 
 # Utilities
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde-wasm-bindgen = "0.6"
-console_error_panic_hook = "0.1"
+console_error_panic_hook = { version = "0.1", optional = true }
 wasm-logger = "0.2"
+wee_alloc = { version = "0.4", optional = true }
+futures = "0.3"
+tokio = { version = "1.0", features = ["macros", "rt"], default-features = false }
+base64 = "0.22"
+uuid.workspace = true
+getrandom = { version = "0.2", features = ["js"] }
+thiserror = "1.0"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+proptest = { workspace = true }
+mockall = { workspace = true }
+tempfile = { workspace = true }
+insta = { workspace = true }
 
 [package.metadata.wasm-pack]
 "wasm-pack" = "0.12"
+
+[features]
+default = ["console_error_panic_hook"]
+browser = ["web-sys/Storage", "web-sys/IndexedDb"]
+node = []
+performance = ["wee_alloc"]
+webworker = ["web-sys/Worker", "web-sys/ServiceWorker"]
+offline = ["web-sys/ServiceWorker", "web-sys/ServiceWorkerContainer"]

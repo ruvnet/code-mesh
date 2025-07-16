@@ -1,8 +1,9 @@
 //! Storage abstractions for Code Mesh
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+mod file;
 
 /// Storage trait for persistent data
 #[async_trait]
@@ -58,7 +59,7 @@ impl FileStorage {
     
     fn key_to_path(&self, key: &str) -> PathBuf {
         // Sanitize key to prevent path traversal
-        let safe_key = key.replace(['/', '\\', '..'], "_");
+        let safe_key = key.replace(['/', '\\'], "_").replace("..", "_");
         self.base_path.join(safe_key)
     }
 }

@@ -1,0 +1,52 @@
+[package]
+name = "code-mesh-tui"
+version.workspace = true
+edition = "2021"
+description = "Terminal User Interface for Code Mesh"
+license.workspace = true
+
+[dependencies]
+# Core dependencies
+code-mesh-core = { path = "../code-mesh-core" }
+tokio.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+
+# TUI dependencies
+ratatui.workspace = true
+crossterm.workspace = true
+tui-textarea.workspace = true
+tui-input.workspace = true
+
+# Text processing and rendering
+syntect.workspace = true
+pulldown-cmark.workspace = true
+unicode-width.workspace = true
+unicode-segmentation.workspace = true
+
+# Color and styling
+owo-colors = "4.0"
+
+# Event handling
+futures.workspace = true
+futures-util.workspace = true
+
+# File and path utilities
+dirs.workspace = true
+walkdir.workspace = true
+
+# Date/time
+chrono.workspace = true
+
+# UUID generation
+uuid.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+tokio-test.workspace = true
+tempfile.workspace = true

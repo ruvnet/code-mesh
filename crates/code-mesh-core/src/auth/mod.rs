@@ -4,6 +4,14 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+pub mod anthropic;
+pub mod storage;
+pub mod github_copilot;
+
+pub use anthropic::{AnthropicAuth, AnthropicMode};
+pub use storage::FileAuthStorage;
+pub use github_copilot::{GitHubCopilotAuth, GitHubCopilotAuthResult};
+
 /// Authentication trait for provider credentials
 #[async_trait]
 pub trait Auth: Send + Sync {
@@ -59,6 +67,24 @@ impl AuthCredentials {
             _ => false,
         }
     }
+    
+    /// Create API key credentials
+    pub fn api_key(key: impl Into<String>) -> Self {
+        Self::ApiKey { key: key.into() }
+    }
+    
+    /// Create OAuth credentials
+    pub fn oauth(
+        access_token: impl Into<String>,
+        refresh_token: Option<impl Into<String>>,
+        expires_at: Option<u64>,
+    ) -> Self {
+        Self::OAuth {
+            access_token: access_token.into(),
+            refresh_token: refresh_token.map(|t| t.into()),
+            expires_at,
+        }
+    }
 }
 
 /// Authentication storage trait
@@ -75,22 +101,4 @@ pub trait AuthStorage: Send + Sync {
     
     /// List all stored provider IDs
     async fn list(&self) -> crate::Result<Vec<String>>;
-}
-
-/// File-based authentication storage
-pub struct FileAuthStorage {
-    path: std::path::PathBuf,
-}
-
-impl FileAuthStorage {
-    pub fn new(path: std::path::PathBuf) -> Self {
-        Self { path }
-    }
-    
-    pub fn default() -> crate::Result<Self> {
-        let data_dir = dirs::data_dir()
-            .ok_or_else(|| crate::Error::Other(anyhow::anyhow!("Could not find data directory")))?;
-        let path = data_dir.join("code-mesh").join("auth.json");
-        Ok(Self::new(path))
-    }
 }

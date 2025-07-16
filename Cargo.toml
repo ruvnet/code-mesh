@@ -2,6 +2,9 @@
 members = [
     "crates/code-mesh-core",
     "crates/code-mesh-cli", 
+    "crates/code-mesh-tui",
+]
+exclude = [
     "crates/code-mesh-wasm",
 ]
 resolver = "2"
@@ -15,13 +18,23 @@ repository = "https://github.com/yourusername/code-mesh"
 
 [workspace.dependencies]
 # Async runtime
-tokio = { version = "1.38", features = ["full"] }
+tokio = { version = "1.40", features = ["full"] }
 futures = "0.3"
+futures-util = "0.3"
+pin-project = "1.1"
+pin-project-lite = "0.2"
+
+# WASM async support
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = "0.3"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
+rmp-serde = "1.3"
 
 # Error handling
 thiserror = "1.0"
@@ -33,24 +46,82 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 # Logging
 tracing = "0.1"
 tracing-subscriber = "0.3"
+tracing-futures = "0.2"
 
 # Utilities
-uuid = { version = "1.0", features = ["v4", "serde"] }
+uuid = { version = "1.10", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
 sha2 = "0.10"
+bytes = "1.7"
+indexmap = { version = "2.5", features = ["serde"] }
 
 # File system
 dirs = "5.0"
 glob = "0.3"
 walkdir = "2.5"
+notify = "6.1"
 
 # Process execution
 which = "6.0"
+url = "2.5"
+
+# Concurrency
+parking_lot = "0.12"
+once_cell = "1.19"
+dashmap = "6.0"
+
+# Crypto
+rand = "0.8"
+hkdf = "0.12"
+
+# Compression
+flate2 = "1.0"
+lz4 = "1.24"
+
+# Configuration
+config = "0.14"
+
+# CLI utilities
+clap = { version = "4.5", features = ["derive", "cargo"] }
+consolator = "0.1"
+
+# TUI dependencies
+ratatui = "0.28"
+crossterm = { version = "0.28", features = ["event-stream"] }
+tui-textarea = "0.6"
+tui-input = "0.10"
+syntect = "5.0"
+pulldown-cmark = "0.11"
+unicode-width = "0.1"
+unicode-segmentation = "1.10"
 
 # Testing
 mockall = "0.12"
 tempfile = "3.10"
+proptest = "1.4"
+tokio-test = "0.4"
+
+# Performance and benchmarking
+criterion = { version = "0.5", features = ["html_reports", "cargo_bench_support"] }
+pprof = { version = "0.13", features = ["criterion", "cpp"] }
+jemallocator = "0.5"
+memory-stats = "1.1"
+flame = "0.2"
+inferno = "0.11"
+
+# Memory optimization
+lru = "0.12"
+
+# Async optimization
+futures-concurrency = "7.4"
+flume = "0.11"
+deadpool = "0.10"
+wiremock = "0.6"
+assert_fs = "1.1"
+predicates = "3.1"
+insta = "1.39"
+rstest = "0.22"
 
 [profile.release]
 lto = true
@@ -60,3 +131,13 @@ codegen-units = 1
 [profile.wasm]
 inherits = "release"
 opt-level = "z"  # Optimize for size
+panic = "abort"
+lto = true
+codegen-units = 1
+
+[profile.bench]
+inherits = "release"
+debug = true
+
+[profile.dev.package.criterion]
+opt-level = 3

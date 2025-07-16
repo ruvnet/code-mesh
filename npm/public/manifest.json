@@ -1,0 +1,164 @@
+{
+  "name": "Code Mesh",
+  "short_name": "CodeMesh",
+  "description": "AI-powered coding assistant with WebAssembly performance",
+  "version": "0.1.0",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#1a1a1a",
+  "background_color": "#ffffff",
+  "lang": "en",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Code Mesh Desktop View"
+    },
+    {
+      "src": "/screenshots/mobile.png",
+      "sizes": "375x667",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Code Mesh Mobile View"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "developer",
+    "utilities"
+  ],
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://code-mesh.dev"
+    }
+  ],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "shortcuts": [
+    {
+      "name": "New Chat",
+      "short_name": "Chat",
+      "description": "Start a new conversation",
+      "url": "/chat",
+      "icons": [
+        {
+          "src": "/icons/chat-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Code Analysis",
+      "short_name": "Analyze",
+      "description": "Analyze code with AI",
+      "url": "/analyze",
+      "icons": [
+        {
+          "src": "/icons/analyze-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Saved Sessions",
+      "short_name": "Sessions",
+      "description": "View saved conversations",
+      "url": "/sessions",
+      "icons": [
+        {
+          "src": "/icons/sessions-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/analyze",
+      "accept": {
+        "text/javascript": [".js", ".jsx", ".mjs"],
+        "text/typescript": [".ts", ".tsx"],
+        "text/x-python": [".py"],
+        "text/x-rust": [".rs"],
+        "text/x-go": [".go"],
+        "text/x-java": [".java"],
+        "text/x-csharp": [".cs"],
+        "text/x-c": [".c", ".h"],
+        "text/x-c++": [".cpp", ".hpp", ".cc"],
+        "application/json": [".json"],
+        "text/yaml": [".yml", ".yaml"],
+        "text/markdown": [".md"]
+      }
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+codemesh",
+      "url": "/handle?url=%s"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "handle_links": "preferred"
+}

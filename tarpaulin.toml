@@ -1,0 +1,57 @@
+# Tarpaulin configuration for code coverage
+
+[report]
+# Output formats
+out = ["Html", "Xml", "Json"]
+
+# Output directory
+output-dir = "coverage"
+
+# Include all features
+all-features = true
+
+# Timeout for each test (in seconds)
+timeout = 120
+
+# Follow symbolic links
+follow-exec = true
+
+# Run tests for the whole workspace
+workspace = true
+
+# Exclude files from coverage
+exclude-files = [
+    "tests/*",
+    "benches/*",
+    "examples/*",
+    "target/*",
+    "**/main.rs",
+    "**/*test*.rs",
+    "**/*mock*.rs"
+]
+
+# Coverage threshold (percentage)
+fail-under = 80
+
+# Generate coverage for all packages
+all = true
+
+# Include line coverage
+line = true
+
+# Include branch coverage
+branch = true
+
+# Count hits for each line
+count = true
+
+# Verbose output
+verbose = true
+
+# Engine to use
+engine = "llvm"
+
+# Additional arguments for tests
+args = [
+    "--test-threads=1"
+]

@@ -6,9 +6,20 @@ use std::collections::HashMap;
 
 pub mod provider;
 pub mod model;
+pub mod anthropic;
+pub mod openai;
+pub mod github_copilot;
+pub mod registry;
 
-pub use provider::Provider;
+#[cfg(test)]
+mod anthropic_test;
+
+pub use provider::{Provider, ProviderConfig, ProviderRegistry, ModelConfig, ModelCapabilities, Cost, Limits, ProviderSource, ProviderStatus, RetryConfig, retry_with_backoff};
 pub use model::Model;
+pub use anthropic::{AnthropicProvider, AnthropicModel, AnthropicModelWithProvider};
+pub use openai::{OpenAIProvider, OpenAIModel, OpenAIModelWithProvider, AzureOpenAIProvider, AzureOpenAIModelWithProvider};
+pub use github_copilot::{GitHubCopilotProvider, GitHubCopilotModel, GitHubCopilotModelWithProvider};
+pub use registry::{LLMRegistry, create_default_registry, create_registry_with_models_dev};
 
 /// Language model trait for interacting with LLM providers
 #[async_trait]

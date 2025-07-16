@@ -1,0 +1,52 @@
+[book]
+title = "Code Mesh Documentation"
+description = "Comprehensive documentation for Code Mesh - AI-powered coding assistant"
+author = "Code Mesh Contributors"
+language = "en"
+multilingual = false
+src = "src"
+
+[build]
+build-dir = "book"
+create-missing = true
+
+[rust]
+edition = "2021"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+curly-quotes = true
+mathjax-support = false
+copy-fonts = true
+additional-css = ["theme/custom.css"]
+additional-js = ["theme/custom.js"]
+
+[output.html.search]
+enable = true
+limit-results = 30
+teaser-word-count = 30
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 1
+boost-paragraph = 1
+expand = true
+heading-split-level = 3
+
+[output.html.git-repository-url]
+url = "https://github.com/yourusername/code-mesh"
+git-repository-icon = "fa-github"
+
+[output.html.edit-url-template]
+template = "https://github.com/yourusername/code-mesh/edit/main/docs/{path}"
+
+[preprocessor.links]
+
+[preprocessor.index]
+
+[preprocessor.toc]
+command = "mdbook-toc"
+renderer = ["html"]
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
