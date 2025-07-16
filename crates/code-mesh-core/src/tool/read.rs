@@ -181,4 +181,92 @@ impl Tool for ReadTool {
 impl ReadTool {
     /// Detect if a file is an image based on its extension
     fn detect_image_type(&self, path: &Path) -> Option<&'static str> {
-        let extension = path.extension()?.to_str()?.to_lowercase();\n        match extension.as_str() {\n            \"jpg\" | \"jpeg\" => Some(\"JPEG\"),\n            \"png\" => Some(\"PNG\"),\n            \"gif\" => Some(\"GIF\"),\n            \"bmp\" => Some(\"BMP\"),\n            \"svg\" => Some(\"SVG\"),\n            \"webp\" => Some(\"WebP\"),\n            \"tiff\" | \"tif\" => Some(\"TIFF\"),\n            \"ico\" => Some(\"ICO\"),\n            _ => {\n                // Also check MIME type as fallback\n                let mime = MimeGuess::from_path(path).first();\n                if let Some(mime) = mime {\n                    if mime.type_() == mime_guess::mime::IMAGE {\n                        Some(\"Image\")\n                    } else {\n                        None\n                    }\n                } else {\n                    None\n                }\n            }\n        }\n    }\n    \n    /// Read file contents with proper error handling\n    async fn read_file_contents(&self, path: &Path) -> Result<String, std::io::Error> {\n        // Check file metadata first\n        let metadata = fs::metadata(path).await?;\n        \n        if metadata.is_dir() {\n            return Err(std::io::Error::new(\n                std::io::ErrorKind::InvalidInput,\n                \"Path is a directory, not a file\"\n            ));\n        }\n        \n        // For very large files, we might want to limit reading\n        if metadata.len() > 100_000_000 { // 100MB limit\n            return Err(std::io::Error::new(\n                std::io::ErrorKind::InvalidInput,\n                \"File too large to read (>100MB). Consider using offset and limit parameters.\"\n            ));\n        }\n        \n        fs::read_to_string(path).await\n    }\n    \n    /// Suggest similar files when target file is not found\n    async fn suggest_similar_files(&self, target_path: &Path) -> Vec<String> {\n        let mut suggestions = Vec::new();\n        \n        let Some(parent_dir) = target_path.parent() else {\n            return suggestions;\n        };\n        \n        let Some(target_name) = target_path.file_name().and_then(|n| n.to_str()) else {\n            return suggestions;\n        };\n        \n        // Read directory entries\n        let Ok(mut entries) = fs::read_dir(parent_dir).await else {\n            return suggestions;\n        };\n        \n        let target_lower = target_name.to_lowercase();\n        \n        while let Ok(Some(entry)) = entries.next_entry().await {\n            if let Some(name) = entry.file_name().to_str() {\n                let name_lower = name.to_lowercase();\n                \n                // Check for similar names (contains or is contained)\n                if name_lower.contains(&target_lower) || target_lower.contains(&name_lower) {\n                    if let Some(full_path) = parent_dir.join(&name).to_str() {\n                        suggestions.push(full_path.to_string());\n                        \n                        // Limit suggestions to avoid overwhelming output\n                        if suggestions.len() >= 3 {\n                            break;\n                        }\n                    }\n                }\n            }\n        }\n        \n        suggestions\n    }\n}
+        let extension = path.extension()?.to_str()?.to_lowercase();
+        match extension.as_str() {
+            "jpg" | "jpeg" => Some("JPEG"),
+            "png" => Some("PNG"),
+            "gif" => Some("GIF"),
+            "bmp" => Some("BMP"),
+            "svg" => Some("SVG"),
+            "webp" => Some("WebP"),
+            "tiff" | "tif" => Some("TIFF"),
+            "ico" => Some("ICO"),
+            _ => {
+                // Also check MIME type as fallback
+                let mime = MimeGuess::from_path(path).first();
+                if let Some(mime) = mime {
+                    if mime.type_() == mime_guess::mime::IMAGE {
+                        Some("Image")
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+        }
+    }
+    
+    /// Read file contents with proper error handling
+    async fn read_file_contents(&self, path: &Path) -> Result<String, std::io::Error> {
+        // Check file metadata first
+        let metadata = fs::metadata(path).await?;
+        
+        if metadata.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Path is a directory, not a file"
+            ));
+        }
+        
+        // For very large files, we might want to limit reading
+        if metadata.len() > 100_000_000 { // 100MB limit
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "File too large to read (>100MB). Consider using offset and limit parameters."
+            ));
+        }
+        
+        fs::read_to_string(path).await
+    }
+    
+    /// Suggest similar files when target file is not found
+    async fn suggest_similar_files(&self, target_path: &Path) -> Vec<String> {
+        let mut suggestions = Vec::new();
+        
+        let Some(parent_dir) = target_path.parent() else {
+            return suggestions;
+        };
+        
+        let Some(target_name) = target_path.file_name().and_then(|n| n.to_str()) else {
+            return suggestions;
+        };
+        
+        // Read directory entries
+        let Ok(mut entries) = fs::read_dir(parent_dir).await else {
+            return suggestions;
+        };
+        
+        let target_lower = target_name.to_lowercase();
+        
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            if let Some(name) = entry.file_name().to_str() {
+                let name_lower = name.to_lowercase();
+                
+                // Check for similar names (contains or is contained)
+                if name_lower.contains(&target_lower) || target_lower.contains(&name_lower) {
+                    if let Some(full_path) = parent_dir.join(&name).to_str() {
+                        suggestions.push(full_path.to_string());
+                        
+                        // Limit suggestions to avoid overwhelming output
+                        if suggestions.len() >= 3 {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        suggestions
+    }
+}

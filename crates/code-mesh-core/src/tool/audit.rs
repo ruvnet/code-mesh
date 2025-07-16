@@ -143,4 +143,375 @@ impl AuditLogger {
         Ok(entry_id)
     }
     
-    /// Log the completion of a tool execution\n    pub async fn log_tool_completion(\n        &self,\n        entry_id: &str,\n        result: &ToolResult,\n        execution_time_ms: u64,\n    ) -> Result<(), ToolError> {\n        if !self.enabled {\n            return Ok(());\n        }\n        \n        self.update_log_entry(\n            entry_id,\n            ExecutionStatus::Completed,\n            Some(result.metadata.clone()),\n            None,\n            Some(execution_time_ms),\n        ).await\n    }\n    \n    /// Log a tool execution failure\n    pub async fn log_tool_failure(\n        &self,\n        entry_id: &str,\n        error: &ToolError,\n        execution_time_ms: u64,\n    ) -> Result<(), ToolError> {\n        if !self.enabled {\n            return Ok(());\n        }\n        \n        let status = match error {\n            ToolError::Aborted => ExecutionStatus::Aborted,\n            ToolError::PermissionDenied(_) => ExecutionStatus::PermissionDenied,\n            _ => ExecutionStatus::Failed,\n        };\n        \n        self.update_log_entry(\n            entry_id,\n            status,\n            None,\n            Some(error.to_string()),\n            Some(execution_time_ms),\n        ).await\n    }\n    \n    /// Get audit logs matching criteria\n    pub async fn get_logs(\n        &self,\n        session_id: Option<&str>,\n        tool_id: Option<&str>,\n        start_time: Option<DateTime<Utc>>,\n        end_time: Option<DateTime<Utc>>,\n        limit: Option<usize>,\n    ) -> Vec<AuditLogEntry> {\n        let logs = self.in_memory_logs.read().await;\n        \n        logs.iter()\n            .filter(|entry| {\n                if let Some(sid) = session_id {\n                    if entry.session_id != sid {\n                        return false;\n                    }\n                }\n                \n                if let Some(tid) = tool_id {\n                    if entry.tool_id != tid {\n                        return false;\n                    }\n                }\n                \n                if let Some(start) = start_time {\n                    if entry.timestamp < start {\n                        return false;\n                    }\n                }\n                \n                if let Some(end) = end_time {\n                    if entry.timestamp > end {\n                        return false;\n                    }\n                }\n                \n                true\n            })\n            .take(limit.unwrap_or(usize::MAX))\n            .cloned()\n            .collect()\n    }\n    \n    /// Get audit statistics\n    pub async fn get_statistics(&self) -> AuditStatistics {\n        let logs = self.in_memory_logs.read().await;\n        \n        let mut stats = AuditStatistics {\n            total_entries: logs.len(),\n            by_tool: HashMap::new(),\n            by_status: HashMap::new(),\n            by_risk_level: HashMap::new(),\n            average_execution_time_ms: 0.0,\n            total_execution_time_ms: 0,\n        };\n        \n        let mut total_time = 0u64;\n        let mut completed_count = 0;\n        \n        for entry in logs.iter() {\n            // Count by tool\n            *stats.by_tool.entry(entry.tool_id.clone()).or_insert(0) += 1;\n            \n            // Count by status\n            let status_key = format!(\"{:?}\", entry.status);\n            *stats.by_status.entry(status_key).or_insert(0) += 1;\n            \n            // Count by risk level\n            if let Some(risk) = &entry.risk_level {\n                let risk_key = format!(\"{:?}\", risk);\n                *stats.by_risk_level.entry(risk_key).or_insert(0) += 1;\n            }\n            \n            // Calculate execution time\n            if let Some(time) = entry.execution_time_ms {\n                total_time += time;\n                completed_count += 1;\n            }\n        }\n        \n        stats.total_execution_time_ms = total_time;\n        if completed_count > 0 {\n            stats.average_execution_time_ms = total_time as f64 / completed_count as f64;\n        }\n        \n        stats\n    }\n    \n    /// Clear old audit logs\n    pub async fn cleanup_old_logs(&self, older_than: DateTime<Utc>) -> usize {\n        let mut logs = self.in_memory_logs.write().await;\n        let original_count = logs.len();\n        \n        logs.retain(|entry| entry.timestamp >= older_than);\n        \n        original_count - logs.len()\n    }\n    \n    /// Create system context information\n    async fn create_system_context(&self, ctx: &ToolContext) -> SystemContext {\n        SystemContext {\n            working_directory: ctx.working_directory.clone(),\n            platform: std::env::consts::OS.to_string(),\n            hostname: hostname::get().ok().and_then(|h| h.into_string().ok()),\n            process_id: std::process::id(),\n            environment_hash: self.hash_environment(),\n        }\n    }\n    \n    /// Create a hash of relevant environment variables\n    fn hash_environment(&self) -> Option<String> {\n        use std::collections::BTreeMap;\n        use sha2::{Sha256, Digest};\n        \n        let relevant_vars = [\"PATH\", \"HOME\", \"USER\", \"USERNAME\", \"SHELL\"];\n        let mut env_map = BTreeMap::new();\n        \n        for var in &relevant_vars {\n            if let Ok(value) = std::env::var(var) {\n                env_map.insert(*var, value);\n            }\n        }\n        \n        if env_map.is_empty() {\n            return None;\n        }\n        \n        let serialized = serde_json::to_string(&env_map).ok()?;\n        let mut hasher = Sha256::new();\n        hasher.update(serialized.as_bytes());\n        Some(format!(\"{:x}\", hasher.finalize()))\n    }\n    \n    /// Write a log entry to storage\n    async fn write_log_entry(&self, entry: &AuditLogEntry) -> Result<(), ToolError> {\n        // Add to in-memory storage\n        {\n            let mut logs = self.in_memory_logs.write().await;\n            logs.push(entry.clone());\n            \n            // Trim if over limit\n            if logs.len() > self.max_memory_entries {\n                logs.remove(0);\n            }\n        }\n        \n        // Write to file if configured\n        if let Some(log_path) = &self.log_file_path {\n            let log_line = serde_json::to_string(entry)\n                .map_err(|e| ToolError::ExecutionFailed(format!(\"Failed to serialize log entry: {}\", e)))?;\n            \n            let mut file = OpenOptions::new()\n                .create(true)\n                .append(true)\n                .open(log_path)\n                .await\n                .map_err(|e| ToolError::ExecutionFailed(format!(\"Failed to open audit log file: {}\", e)))?;\n            \n            file.write_all(format!(\"{}\n\", log_line).as_bytes())\n                .await\n                .map_err(|e| ToolError::ExecutionFailed(format!(\"Failed to write to audit log: {}\", e)))?;\n            \n            file.flush().await\n                .map_err(|e| ToolError::ExecutionFailed(format!(\"Failed to flush audit log: {}\", e)))?;\n        }\n        \n        Ok(())\n    }\n    \n    /// Update an existing log entry\n    async fn update_log_entry(\n        &self,\n        entry_id: &str,\n        status: ExecutionStatus,\n        result_metadata: Option<Value>,\n        error_details: Option<String>,\n        execution_time_ms: Option<u64>,\n    ) -> Result<(), ToolError> {\n        let mut logs = self.in_memory_logs.write().await;\n        \n        if let Some(entry) = logs.iter_mut().find(|e| e.entry_id == entry_id) {\n            entry.status = status;\n            entry.result_metadata = result_metadata;\n            entry.error_details = error_details;\n            entry.execution_time_ms = execution_time_ms;\n            \n            // Write updated entry to file if configured\n            if self.log_file_path.is_some() {\n                self.write_log_entry(entry).await?;\n            }\n        }\n        \n        Ok(())\n    }\n}\n\n/// Audit statistics summary\n#[derive(Debug, Clone, Serialize)]\npub struct AuditStatistics {\n    pub total_entries: usize,\n    pub by_tool: HashMap<String, usize>,\n    pub by_status: HashMap<String, usize>,\n    pub by_risk_level: HashMap<String, usize>,\n    pub average_execution_time_ms: f64,\n    pub total_execution_time_ms: u64,\n}\n\n/// Helper function to determine operation type from tool ID\npub fn operation_type_from_tool(tool_id: &str) -> OperationType {\n    match tool_id {\n        \"read\" => OperationType::FileRead,\n        \"write\" => OperationType::FileWrite,\n        \"edit\" | \"multiedit\" => OperationType::FileEdit,\n        \"bash\" => OperationType::CommandExecution,\n        \"web_fetch\" | \"web_search\" => OperationType::NetworkRequest,\n        \"grep\" | \"glob\" => OperationType::SystemQuery,\n        _ => OperationType::Other(tool_id.to_string()),\n    }\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n    use tempfile::NamedTempFile;\n    \n    #[tokio::test]\n    async fn test_audit_logger() {\n        let logger = AuditLogger::new();\n        \n        let ctx = ToolContext {\n            session_id: \"test_session\".to_string(),\n            message_id: \"test_message\".to_string(),\n            abort_signal: tokio::sync::watch::channel(false).1,\n            working_directory: std::env::current_dir().unwrap(),\n        };\n        \n        // Log tool start\n        let entry_id = logger.log_tool_start(\n            \"test_tool\",\n            OperationType::FileRead,\n            &ctx,\n            serde_json::json!({\"test\": \"value\"}),\n            Some(RiskLevel::Low),\n        ).await.unwrap();\n        \n        // Log completion\n        let result = ToolResult {\n            title: \"Test\".to_string(),\n            metadata: serde_json::json!({\"result\": \"success\"}),\n            output: \"Test output\".to_string(),\n        };\n        \n        logger.log_tool_completion(&entry_id, &result, 100).await.unwrap();\n        \n        // Check logs\n        let logs = logger.get_logs(Some(\"test_session\"), None, None, None, None).await;\n        assert_eq!(logs.len(), 1);\n        assert_eq!(logs[0].tool_id, \"test_tool\");\n        assert!(matches!(logs[0].status, ExecutionStatus::Completed));\n    }\n    \n    #[tokio::test]\n    async fn test_audit_statistics() {\n        let logger = AuditLogger::new();\n        \n        let ctx = ToolContext {\n            session_id: \"test_session\".to_string(),\n            message_id: \"test_message\".to_string(),\n            abort_signal: tokio::sync::watch::channel(false).1,\n            working_directory: std::env::current_dir().unwrap(),\n        };\n        \n        // Create multiple log entries\n        for i in 0..3 {\n            let entry_id = logger.log_tool_start(\n                \"test_tool\",\n                OperationType::FileRead,\n                &ctx,\n                serde_json::json!({\"test\": i}),\n                Some(RiskLevel::Low),\n            ).await.unwrap();\n            \n            let result = ToolResult {\n                title: \"Test\".to_string(),\n                metadata: serde_json::json!({\"result\": \"success\"}),\n                output: \"Test output\".to_string(),\n            };\n            \n            logger.log_tool_completion(&entry_id, &result, 100 + i * 50).await.unwrap();\n        }\n        \n        let stats = logger.get_statistics().await;\n        assert_eq!(stats.total_entries, 3);\n        assert_eq!(stats.by_tool.get(\"test_tool\"), Some(&3));\n        assert!(stats.average_execution_time_ms > 0.0);\n    }\n    \n    #[tokio::test]\n    async fn test_file_logging() {\n        let temp_file = NamedTempFile::new().unwrap();\n        let log_path = temp_file.path().to_path_buf();\n        \n        let logger = AuditLogger::with_file(log_path.clone());\n        \n        let ctx = ToolContext {\n            session_id: \"test_session\".to_string(),\n            message_id: \"test_message\".to_string(),\n            abort_signal: tokio::sync::watch::channel(false).1,\n            working_directory: std::env::current_dir().unwrap(),\n        };\n        \n        logger.log_tool_start(\n            \"test_tool\",\n            OperationType::FileRead,\n            &ctx,\n            serde_json::json!({\"test\": \"value\"}),\n            Some(RiskLevel::Low),\n        ).await.unwrap();\n        \n        // Check that file was written\n        let content = tokio::fs::read_to_string(&log_path).await.unwrap();\n        assert!(content.contains(\"test_tool\"));\n        assert!(content.contains(\"test_session\"));\n    }\n}
+    /// Log the completion of a tool execution
+    pub async fn log_tool_completion(
+        &self,
+        entry_id: &str,
+        result: &ToolResult,
+        execution_time_ms: u64,
+    ) -> Result<(), ToolError> {
+        if !self.enabled {
+            return Ok(());
+        }
+        
+        self.update_log_entry(
+            entry_id,
+            ExecutionStatus::Completed,
+            Some(result.metadata.clone()),
+            None,
+            Some(execution_time_ms),
+        ).await
+    }
+    
+    /// Log a tool execution failure
+    pub async fn log_tool_failure(
+        &self,
+        entry_id: &str,
+        error: &ToolError,
+        execution_time_ms: u64,
+    ) -> Result<(), ToolError> {
+        if !self.enabled {
+            return Ok(());
+        }
+        
+        let status = match error {
+            ToolError::Aborted => ExecutionStatus::Aborted,
+            ToolError::PermissionDenied(_) => ExecutionStatus::PermissionDenied,
+            _ => ExecutionStatus::Failed,
+        };
+        
+        self.update_log_entry(
+            entry_id,
+            status,
+            None,
+            Some(error.to_string()),
+            Some(execution_time_ms),
+        ).await
+    }
+    
+    /// Get audit logs matching criteria
+    pub async fn get_logs(
+        &self,
+        session_id: Option<&str>,
+        tool_id: Option<&str>,
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+        limit: Option<usize>,
+    ) -> Vec<AuditLogEntry> {
+        let logs = self.in_memory_logs.read().await;
+        
+        logs.iter()
+            .filter(|entry| {
+                if let Some(sid) = session_id {
+                    if entry.session_id != sid {
+                        return false;
+                    }
+                }
+                
+                if let Some(tid) = tool_id {
+                    if entry.tool_id != tid {
+                        return false;
+                    }
+                }
+                
+                if let Some(start) = start_time {
+                    if entry.timestamp < start {
+                        return false;
+                    }
+                }
+                
+                if let Some(end) = end_time {
+                    if entry.timestamp > end {
+                        return false;
+                    }
+                }
+                
+                true
+            })
+            .take(limit.unwrap_or(usize::MAX))
+            .cloned()
+            .collect()
+    }
+    
+    /// Get audit statistics
+    pub async fn get_statistics(&self) -> AuditStatistics {
+        let logs = self.in_memory_logs.read().await;
+        
+        let mut stats = AuditStatistics {
+            total_entries: logs.len(),
+            by_tool: HashMap::new(),
+            by_status: HashMap::new(),
+            by_risk_level: HashMap::new(),
+            average_execution_time_ms: 0.0,
+            total_execution_time_ms: 0,
+        };
+        
+        let mut total_time = 0u64;
+        let mut completed_count = 0;
+        
+        for entry in logs.iter() {
+            // Count by tool
+            *stats.by_tool.entry(entry.tool_id.clone()).or_insert(0) += 1;
+            
+            // Count by status
+            let status_key = format!("{:?}", entry.status);
+            *stats.by_status.entry(status_key).or_insert(0) += 1;
+            
+            // Count by risk level
+            if let Some(risk) = &entry.risk_level {
+                let risk_key = format!("{:?}", risk);
+                *stats.by_risk_level.entry(risk_key).or_insert(0) += 1;
+            }
+            
+            // Calculate execution time
+            if let Some(time) = entry.execution_time_ms {
+                total_time += time;
+                completed_count += 1;
+            }
+        }
+        
+        stats.total_execution_time_ms = total_time;
+        if completed_count > 0 {
+            stats.average_execution_time_ms = total_time as f64 / completed_count as f64;
+        }
+        
+        stats
+    }
+    
+    /// Clear old audit logs
+    pub async fn cleanup_old_logs(&self, older_than: DateTime<Utc>) -> usize {
+        let mut logs = self.in_memory_logs.write().await;
+        let original_count = logs.len();
+        
+        logs.retain(|entry| entry.timestamp >= older_than);
+        
+        original_count - logs.len()
+    }
+    
+    /// Create system context information
+    async fn create_system_context(&self, ctx: &ToolContext) -> SystemContext {
+        SystemContext {
+            working_directory: ctx.working_directory.clone(),
+            platform: std::env::consts::OS.to_string(),
+            hostname: hostname::get().ok().and_then(|h| h.into_string().ok()),
+            process_id: std::process::id(),
+            environment_hash: self.hash_environment(),
+        }
+    }
+    
+    /// Create a hash of relevant environment variables
+    fn hash_environment(&self) -> Option<String> {
+        use std::collections::BTreeMap;
+        use sha2::{Sha256, Digest};
+        
+        let relevant_vars = ["PATH", "HOME", "USER", "USERNAME", "SHELL"];
+        let mut env_map = BTreeMap::new();
+        
+        for var in &relevant_vars {
+            if let Ok(value) = std::env::var(var) {
+                env_map.insert(*var, value);
+            }
+        }
+        
+        if env_map.is_empty() {
+            return None;
+        }
+        
+        let serialized = serde_json::to_string(&env_map).ok()?;
+        let mut hasher = Sha256::new();
+        hasher.update(serialized.as_bytes());
+        Some(format!("{:x}", hasher.finalize()))
+    }
+    
+    /// Write a log entry to storage
+    async fn write_log_entry(&self, entry: &AuditLogEntry) -> Result<(), ToolError> {
+        // Add to in-memory storage
+        {
+            let mut logs = self.in_memory_logs.write().await;
+            logs.push(entry.clone());
+            
+            // Trim if over limit
+            if logs.len() > self.max_memory_entries {
+                logs.remove(0);
+            }
+        }
+        
+        // Write to file if configured
+        if let Some(log_path) = &self.log_file_path {
+            let log_line = serde_json::to_string(entry)
+                .map_err(|e| ToolError::ExecutionFailed(format!("Failed to serialize log entry: {}", e)))?;
+            
+            let mut file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(log_path)
+                .await
+                .map_err(|e| ToolError::ExecutionFailed(format!("Failed to open audit log file: {}", e)))?;
+            
+            file.write_all(format!("{}\n", log_line).as_bytes())
+                .await
+                .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write to audit log: {}", e)))?;
+            
+            file.flush().await
+                .map_err(|e| ToolError::ExecutionFailed(format!("Failed to flush audit log: {}", e)))?;
+        }
+        
+        Ok(())
+    }
+    
+    /// Update an existing log entry
+    async fn update_log_entry(
+        &self,
+        entry_id: &str,
+        status: ExecutionStatus,
+        result_metadata: Option<Value>,
+        error_details: Option<String>,
+        execution_time_ms: Option<u64>,
+    ) -> Result<(), ToolError> {
+        let mut logs = self.in_memory_logs.write().await;
+        
+        if let Some(entry) = logs.iter_mut().find(|e| e.entry_id == entry_id) {
+            entry.status = status;
+            entry.result_metadata = result_metadata;
+            entry.error_details = error_details;
+            entry.execution_time_ms = execution_time_ms;
+            
+            // Write updated entry to file if configured
+            if self.log_file_path.is_some() {
+                self.write_log_entry(entry).await?;
+            }
+        }
+        
+        Ok(())
+    }
+}
+
+/// Audit statistics summary
+#[derive(Debug, Clone, Serialize)]
+pub struct AuditStatistics {
+    pub total_entries: usize,
+    pub by_tool: HashMap<String, usize>,
+    pub by_status: HashMap<String, usize>,
+    pub by_risk_level: HashMap<String, usize>,
+    pub average_execution_time_ms: f64,
+    pub total_execution_time_ms: u64,
+}
+
+/// Helper function to determine operation type from tool ID
+pub fn operation_type_from_tool(tool_id: &str) -> OperationType {
+    match tool_id {
+        "read" => OperationType::FileRead,
+        "write" => OperationType::FileWrite,
+        "edit" | "multiedit" => OperationType::FileEdit,
+        "bash" => OperationType::CommandExecution,
+        "web_fetch" | "web_search" => OperationType::NetworkRequest,
+        "grep" | "glob" => OperationType::SystemQuery,
+        _ => OperationType::Other(tool_id.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+    
+    #[tokio::test]
+    async fn test_audit_logger() {
+        let logger = AuditLogger::new();
+        
+        let ctx = ToolContext {
+            session_id: "test_session".to_string(),
+            message_id: "test_message".to_string(),
+            abort_signal: tokio::sync::watch::channel(false).1,
+            working_directory: std::env::current_dir().unwrap(),
+        };
+        
+        // Log tool start
+        let entry_id = logger.log_tool_start(
+            "test_tool",
+            OperationType::FileRead,
+            &ctx,
+            serde_json::json!({"test": "value"}),
+            Some(RiskLevel::Low),
+        ).await.unwrap();
+        
+        // Log completion
+        let result = ToolResult {
+            title: "Test".to_string(),
+            metadata: serde_json::json!({"result": "success"}),
+            output: "Test output".to_string(),
+        };
+        
+        logger.log_tool_completion(&entry_id, &result, 100).await.unwrap();
+        
+        // Check logs
+        let logs = logger.get_logs(Some("test_session"), None, None, None, None).await;
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].tool_id, "test_tool");
+        assert!(matches!(logs[0].status, ExecutionStatus::Completed));
+    }
+    
+    #[tokio::test]
+    async fn test_audit_statistics() {
+        let logger = AuditLogger::new();
+        
+        let ctx = ToolContext {
+            session_id: "test_session".to_string(),
+            message_id: "test_message".to_string(),
+            abort_signal: tokio::sync::watch::channel(false).1,
+            working_directory: std::env::current_dir().unwrap(),
+        };
+        
+        // Create multiple log entries
+        for i in 0..3 {
+            let entry_id = logger.log_tool_start(
+                "test_tool",
+                OperationType::FileRead,
+                &ctx,
+                serde_json::json!({"test": i}),
+                Some(RiskLevel::Low),
+            ).await.unwrap();
+            
+            let result = ToolResult {
+                title: "Test".to_string(),
+                metadata: serde_json::json!({"result": "success"}),
+                output: "Test output".to_string(),
+            };
+            
+            logger.log_tool_completion(&entry_id, &result, 100 + i * 50).await.unwrap();
+        }
+        
+        let stats = logger.get_statistics().await;
+        assert_eq!(stats.total_entries, 3);
+        assert_eq!(stats.by_tool.get("test_tool"), Some(&3));
+        assert!(stats.average_execution_time_ms > 0.0);
+    }
+    
+    #[tokio::test]
+    async fn test_file_logging() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let log_path = temp_file.path().to_path_buf();
+        
+        let logger = AuditLogger::with_file(log_path.clone());
+        
+        let ctx = ToolContext {
+            session_id: "test_session".to_string(),
+            message_id: "test_message".to_string(),
+            abort_signal: tokio::sync::watch::channel(false).1,
+            working_directory: std::env::current_dir().unwrap(),
+        };
+        
+        logger.log_tool_start(
+            "test_tool",
+            OperationType::FileRead,
+            &ctx,
+            serde_json::json!({"test": "value"}),
+            Some(RiskLevel::Low),
+        ).await.unwrap();
+        
+        // Check that file was written
+        let content = tokio::fs::read_to_string(&log_path).await.unwrap();
+        assert!(content.contains("test_tool"));
+        assert!(content.contains("test_session"));
+    }
+}
