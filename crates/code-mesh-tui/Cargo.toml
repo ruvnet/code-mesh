@@ -1,9 +1,16 @@
 [package]
 name = "code-mesh-tui"
 version.workspace = true
-edition = "2021"
-description = "Terminal User Interface for Code Mesh"
+authors.workspace = true
+edition.workspace = true
 license.workspace = true
+description = "Interactive Terminal User Interface for the Code-Mesh distributed swarm intelligence system"
+homepage = "https://github.com/ruvnet/code-mesh"
+repository = "https://github.com/ruvnet/code-mesh"
+documentation = "https://docs.rs/code-mesh-tui"
+readme = "README.md"
+keywords = ["tui", "terminal", "swarm", "visualization", "monitoring"]
+categories = ["command-line-utilities", "visualization", "development-tools"]
 
 [dependencies]
 # Core dependencies

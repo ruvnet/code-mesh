@@ -4,6 +4,13 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Command-line interface for the Code-Mesh distributed swarm intelligence system"
+homepage = "https://github.com/ruvnet/code-mesh"
+repository = "https://github.com/ruvnet/code-mesh"
+documentation = "https://docs.rs/code-mesh-cli"
+readme = "README.md"
+keywords = ["cli", "swarm", "distributed", "neural", "performance"]
+categories = ["command-line-utilities", "development-tools", "concurrency"]
 
 [[bin]]
 name = "code-mesh"

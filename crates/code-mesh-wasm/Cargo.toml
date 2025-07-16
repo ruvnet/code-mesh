@@ -4,6 +4,13 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "WebAssembly bindings for the Code-Mesh distributed swarm intelligence system"
+homepage = "https://github.com/ruvnet/code-mesh"
+repository = "https://github.com/ruvnet/code-mesh"
+documentation = "https://docs.rs/code-mesh-wasm"
+readme = "README.md"
+keywords = ["wasm", "webassembly", "javascript", "browser", "swarm"]
+categories = ["wasm", "web-programming", "development-tools", "api-bindings"]
 
 [lib]
 crate-type = ["cdylib"]

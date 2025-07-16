@@ -4,6 +4,13 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "High-performance, WASM-powered distributed swarm intelligence core library for concurrent code execution and neural mesh computing"
+homepage = "https://github.com/ruvnet/code-mesh"
+repository = "https://github.com/ruvnet/code-mesh"
+documentation = "https://docs.rs/code-mesh-core"
+readme = "README.md"
+keywords = ["wasm", "distributed", "swarm", "neural", "performance"]
+categories = ["development-tools", "web-programming", "concurrency", "algorithms", "wasm"]
 
 [dependencies]
 # Workspace dependencies
