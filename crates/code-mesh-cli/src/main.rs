@@ -1,5 +1,7 @@
 //! Code Mesh CLI - AI-powered coding assistant
 
+#![allow(warnings)]
+
 use clap::{Parser, Subcommand};
 use anyhow::Result;
 use tracing::info;

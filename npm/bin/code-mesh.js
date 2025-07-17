@@ -67,7 +67,10 @@ function runNativeBinary() {
   
   const child = spawn(binaryPath, args, {
     stdio: 'inherit',
-    env: process.env,
+    env: {
+      ...process.env,
+      RUST_LOG: 'error', // Suppress warnings, only show errors
+    },
   });
   
   child.on('exit', (code) => {

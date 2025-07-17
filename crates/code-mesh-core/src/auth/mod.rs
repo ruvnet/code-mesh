@@ -134,3 +134,34 @@ impl Default for FileAuthStorage {
     }
 }
 
+/// Shared authentication storage wrapper
+/// This allows us to use Arc<dyn AuthStorage> with code that expects Box<dyn AuthStorage>
+pub struct SharedAuthStorage {
+    inner: std::sync::Arc<dyn AuthStorage>,
+}
+
+impl SharedAuthStorage {
+    pub fn new(storage: std::sync::Arc<dyn AuthStorage>) -> Self {
+        Self { inner: storage }
+    }
+}
+
+#[async_trait]
+impl AuthStorage for SharedAuthStorage {
+    async fn get(&self, provider_id: &str) -> crate::Result<Option<AuthCredentials>> {
+        self.inner.get(provider_id).await
+    }
+    
+    async fn set(&self, provider_id: &str, credentials: AuthCredentials) -> crate::Result<()> {
+        self.inner.set(provider_id, credentials).await
+    }
+    
+    async fn remove(&self, provider_id: &str) -> crate::Result<()> {
+        self.inner.remove(provider_id).await
+    }
+    
+    async fn list(&self) -> crate::Result<Vec<String>> {
+        self.inner.list().await
+    }
+}
+

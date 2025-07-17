@@ -52,6 +52,11 @@ colored = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
 atty = "0.2"
 terminal_size = "0.3"
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.8"
+url = "2.5"
+reqwest = { version = "0.12", features = ["json"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }

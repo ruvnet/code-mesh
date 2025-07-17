@@ -5,6 +5,7 @@ pub mod config;
 pub mod error;
 pub mod init;
 pub mod models;
+pub mod oauth;
 pub mod run;
 pub mod serve;
 pub mod status;

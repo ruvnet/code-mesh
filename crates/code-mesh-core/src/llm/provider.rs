@@ -927,9 +927,16 @@ impl ProviderRegistry {
     
     // Helper methods to create providers
     async fn create_anthropic_provider(&self) -> Result<Arc<dyn Provider>> {
-        // This would create an Anthropic provider using the auth storage
-        // For now, return an error as the actual implementation depends on the anthropic module
-        Err(Error::Other(anyhow::anyhow!("Anthropic provider creation not implemented in this context")))
+        use crate::auth::AnthropicAuth;
+        use super::anthropic::AnthropicProvider;
+        
+        // Create AnthropicAuth with our auth storage
+        let auth = AnthropicAuth::new(Box::new(crate::auth::SharedAuthStorage::new(self.storage.clone())));
+        
+        // Create the provider with the auth
+        let provider = AnthropicProvider::new(Box::new(auth));
+        
+        Ok(Arc::new(provider))
     }
     
     async fn create_openai_provider(&self) -> Result<Arc<dyn Provider>> {

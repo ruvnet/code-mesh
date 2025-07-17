@@ -150,6 +150,8 @@
 //! - **Caching**: Intelligent caching of model responses and file contents
 //! - **Memory Management**: Bounded memory usage with configurable limits
 
+#![allow(warnings)]
+
 // Core modules
 pub mod agent;
 pub mod auth;
