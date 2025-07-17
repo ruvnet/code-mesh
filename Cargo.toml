@@ -104,7 +104,7 @@ tokio-test = "0.4"
 
 # Performance and benchmarking
 criterion = { version = "0.5", features = ["html_reports", "cargo_bench_support"] }
-pprof = { version = "0.13", features = ["criterion", "cpp"] }
+pprof = { version = "0.15", features = ["criterion", "cpp"] }
 jemallocator = "0.5"
 memory-stats = "1.1"
 flame = "0.2"
