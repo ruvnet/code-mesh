@@ -90,7 +90,7 @@ consolator = "0.1"
 ratatui = "0.28"
 crossterm = { version = "0.28", features = ["event-stream"] }
 tui-textarea = "0.6"
-tui-input = "0.10"
+tui-input = "0.14"
 syntect = "5.0"
 pulldown-cmark = "0.11"
 unicode-width = "0.1"
