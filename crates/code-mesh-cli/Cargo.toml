@@ -36,7 +36,7 @@ console = "0.15"
 dialoguer = "0.11"
 
 # Terminal UI
-ratatui = "0.26"
+ratatui = "0.29"
 crossterm = "0.27"
 tui-textarea = "0.5"
 syntect = "5.2"
