@@ -44,7 +44,7 @@ syntect = "5.2"
 # HTTP server
 axum = "0.7"
 tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 
 # Utils
 open = "5.1"
