@@ -259,7 +259,7 @@ jobs:
       run: cargo audit
 
     - name: Run cargo deny
-      uses: EmbarkStudios/cargo-deny-action@v1
+      uses: EmbarkStudios/cargo-deny-action@v2
 
   integration-real-apis:
     name: Integration Tests with Real APIs
