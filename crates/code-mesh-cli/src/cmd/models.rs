@@ -1,39 +1,45 @@
 //! Models command implementation
 
-use crate::cmd::{CliError, Result, UI, Config};
+use crate::cmd::{CliError, Config, Result, UI};
 use std::collections::HashMap;
 
 /// Execute the models command
 pub async fn execute(provider_filter: Option<String>) -> Result<()> {
     let mut ui = UI::new();
-    
+
     ui.info("Available AI models")?;
     ui.println("")?;
 
     // Get available models
     let models = get_available_models().await?;
-    
+
     // Filter by provider if specified
-    let filtered_models: HashMap<String, Vec<ModelInfo>> = if let Some(ref provider) = provider_filter {
-        models
-            .into_iter()
-            .filter(|(p, _)| p == provider)
-            .collect()
-    } else {
-        models
-    };
+    let filtered_models: HashMap<String, Vec<ModelInfo>> =
+        if let Some(ref provider) = provider_filter {
+            models.into_iter().filter(|(p, _)| p == provider).collect()
+        } else {
+            models
+        };
 
     if filtered_models.is_empty() {
         ui.warning("No models found")?;
         if let Some(provider) = provider_filter {
-            ui.info(&format!("Provider '{}' not found or has no models", provider))?;
+            ui.info(&format!(
+                "Provider '{}' not found or has no models",
+                provider
+            ))?;
         }
         return Ok(());
     }
 
     // Display models grouped by provider
     for (provider_name, provider_models) in filtered_models {
-        ui.println(&console::Style::new().bold().apply_to(&provider_name).to_string())?;
+        ui.println(
+            &console::Style::new()
+                .bold()
+                .apply_to(&provider_name)
+                .to_string(),
+        )?;
         ui.println(&"─".repeat(provider_name.len()))?;
 
         if provider_models.is_empty() {
@@ -61,12 +67,7 @@ pub async fn execute(provider_filter: Option<String>) -> Result<()> {
                     "✗ Unavailable".to_string()
                 };
 
-                table.add_row(vec![
-                    model.name,
-                    model.model_type,
-                    context,
-                    status,
-                ]);
+                table.add_row(vec![model.name, model.model_type, context, status]);
             }
 
             table.print(&mut ui)?;
@@ -99,13 +100,13 @@ async fn get_available_models() -> Result<HashMap<String, Vec<ModelInfo>>> {
 
     // Add Anthropic models
     models.insert("Anthropic".to_string(), get_anthropic_models().await?);
-    
+
     // Add OpenAI models
     models.insert("OpenAI".to_string(), get_openai_models().await?);
-    
+
     // Add Google models
     models.insert("Google".to_string(), get_google_models().await?);
-    
+
     // Add GitHub Copilot models
     models.insert("GitHub".to_string(), get_github_models().await?);
 
@@ -228,18 +229,16 @@ async fn get_google_models() -> Result<Vec<ModelInfo>> {
 
 /// Get GitHub Copilot models
 async fn get_github_models() -> Result<Vec<ModelInfo>> {
-    let models = vec![
-        ModelInfo {
-            id: "gpt-4".to_string(),
-            name: "GitHub Copilot Chat".to_string(),
-            model_type: "Chat".to_string(),
-            context_length: 8192,
-            available: is_provider_available("github").await,
-            description: Some("GitHub's AI pair programmer".to_string()),
-            supports_streaming: true,
-            supports_function_calling: false,
-        },
-    ];
+    let models = vec![ModelInfo {
+        id: "gpt-4".to_string(),
+        name: "GitHub Copilot Chat".to_string(),
+        model_type: "Chat".to_string(),
+        context_length: 8192,
+        available: is_provider_available("github").await,
+        description: Some("GitHub's AI pair programmer".to_string()),
+        supports_streaming: true,
+        supports_function_calling: false,
+    }];
 
     Ok(models)
 }

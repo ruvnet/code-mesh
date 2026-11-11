@@ -175,21 +175,21 @@ impl GitHubCopilotProvider {
     const ACCESS_TOKEN_URL: &'static str = "https://github.com/login/oauth/access_token";
     const COPILOT_TOKEN_URL: &'static str = "https://api.github.com/copilot_internal/v2/token";
     const API_BASE: &'static str = "https://api.githubcopilot.com";
-    
+
     pub fn new(auth: Box<dyn Auth>) -> Self {
         let client = Client::new();
         let models = Self::default_models();
-        
+
         Self {
             auth,
             client,
             models,
         }
     }
-    
+
     fn default_models() -> HashMap<String, GitHubCopilotModel> {
         let mut models = HashMap::new();
-        
+
         models.insert(
             "gpt-4o".to_string(),
             GitHubCopilotModel {
@@ -201,7 +201,7 @@ impl GitHubCopilotProvider {
                 supports_caching: false,
             },
         );
-        
+
         models.insert(
             "gpt-4o-mini".to_string(),
             GitHubCopilotModel {
@@ -213,7 +213,7 @@ impl GitHubCopilotProvider {
                 supports_caching: false,
             },
         );
-        
+
         models.insert(
             "o1-preview".to_string(),
             GitHubCopilotModel {
@@ -225,10 +225,10 @@ impl GitHubCopilotProvider {
                 supports_caching: false,
             },
         );
-        
+
         models
     }
-    
+
     /// Start device code flow for authentication
     pub async fn start_device_flow() -> crate::Result<DeviceCodeResponse> {
         let client = Client::new();
@@ -236,7 +236,7 @@ impl GitHubCopilotProvider {
             client_id: Self::CLIENT_ID.to_string(),
             scope: "read:user".to_string(),
         };
-        
+
         let response = client
             .post(Self::DEVICE_CODE_URL)
             .header("Accept", "application/json")
@@ -245,23 +245,27 @@ impl GitHubCopilotProvider {
             .json(&request)
             .send()
             .await
-            .map_err(|e| crate::Error::Other(anyhow::anyhow!("Device code request failed: {}", e)))?;
-            
+            .map_err(|e| {
+                crate::Error::Other(anyhow::anyhow!("Device code request failed: {}", e))
+            })?;
+
         if !response.status().is_success() {
             return Err(crate::Error::Other(anyhow::anyhow!(
                 "Device code request failed with status: {}",
                 response.status()
             )));
         }
-        
-        let device_response: DeviceCodeResponse = response
-            .json()
-            .await
-            .map_err(|e| crate::Error::Other(anyhow::anyhow!("Failed to parse device code response: {}", e)))?;
-            
+
+        let device_response: DeviceCodeResponse = response.json().await.map_err(|e| {
+            crate::Error::Other(anyhow::anyhow!(
+                "Failed to parse device code response: {}",
+                e
+            ))
+        })?;
+
         Ok(device_response)
     }
-    
+
     /// Poll for access token
     pub async fn poll_for_token(device_code: &str) -> crate::Result<Option<String>> {
         let client = Client::new();
@@ -270,7 +274,7 @@ impl GitHubCopilotProvider {
             device_code: device_code.to_string(),
             grant_type: "urn:ietf:params:oauth:grant-type:device_code".to_string(),
         };
-        
+
         let response = client
             .post(Self::ACCESS_TOKEN_URL)
             .header("Accept", "application/json")
@@ -279,17 +283,18 @@ impl GitHubCopilotProvider {
             .json(&request)
             .send()
             .await
-            .map_err(|e| crate::Error::Other(anyhow::anyhow!("Token poll request failed: {}", e)))?;
-            
+            .map_err(|e| {
+                crate::Error::Other(anyhow::anyhow!("Token poll request failed: {}", e))
+            })?;
+
         if !response.status().is_success() {
             return Ok(None);
         }
-        
-        let token_response: AccessTokenResponse = response
-            .json()
-            .await
-            .map_err(|e| crate::Error::Other(anyhow::anyhow!("Failed to parse token response: {}", e)))?;
-            
+
+        let token_response: AccessTokenResponse = response.json().await.map_err(|e| {
+            crate::Error::Other(anyhow::anyhow!("Failed to parse token response: {}", e))
+        })?;
+
         if let Some(access_token) = token_response.access_token {
             Ok(Some(access_token))
         } else if token_response.error.as_deref() == Some("authorization_pending") {
@@ -301,11 +306,11 @@ impl GitHubCopilotProvider {
             )))
         }
     }
-    
+
     /// Get Copilot API token using GitHub OAuth token
     pub async fn get_copilot_token(github_token: &str) -> crate::Result<AuthCredentials> {
         let client = Client::new();
-        
+
         let response = client
             .get(Self::COPILOT_TOKEN_URL)
             .header("Accept", "application/json")
@@ -315,61 +320,89 @@ impl GitHubCopilotProvider {
             .header("Editor-Plugin-Version", "copilot-chat/0.26.7")
             .send()
             .await
-            .map_err(|e| crate::Error::Other(anyhow::anyhow!("Copilot token request failed: {}", e)))?;
-            
+            .map_err(|e| {
+                crate::Error::Other(anyhow::anyhow!("Copilot token request failed: {}", e))
+            })?;
+
         if !response.status().is_success() {
             return Err(crate::Error::Other(anyhow::anyhow!(
                 "Copilot token request failed with status: {}",
                 response.status()
             )));
         }
-        
-        let token_response: CopilotTokenResponse = response
-            .json()
-            .await
-            .map_err(|e| crate::Error::Other(anyhow::anyhow!("Failed to parse copilot token response: {}", e)))?;
-            
+
+        let token_response: CopilotTokenResponse = response.json().await.map_err(|e| {
+            crate::Error::Other(anyhow::anyhow!(
+                "Failed to parse copilot token response: {}",
+                e
+            ))
+        })?;
+
         Ok(AuthCredentials::OAuth {
             access_token: token_response.token,
             refresh_token: Some(github_token.to_string()), // Store GitHub token for refresh
             expires_at: Some(token_response.expires_at),
         })
     }
-    
+
     async fn get_auth_headers(&self) -> crate::Result<HashMap<String, String>> {
         let credentials = self.auth.get_credentials().await?;
-        
+
         let mut headers = HashMap::new();
-        headers.insert("User-Agent".to_string(), "GitHubCopilotChat/0.26.7".to_string());
+        headers.insert(
+            "User-Agent".to_string(),
+            "GitHubCopilotChat/0.26.7".to_string(),
+        );
         headers.insert("Editor-Version".to_string(), "vscode/1.99.3".to_string());
-        headers.insert("Editor-Plugin-Version".to_string(), "copilot-chat/0.26.7".to_string());
-        headers.insert("Openai-Intent".to_string(), "conversation-edits".to_string());
-        
+        headers.insert(
+            "Editor-Plugin-Version".to_string(),
+            "copilot-chat/0.26.7".to_string(),
+        );
+        headers.insert(
+            "Openai-Intent".to_string(),
+            "conversation-edits".to_string(),
+        );
+
         match credentials {
-            AuthCredentials::OAuth { access_token, refresh_token, expires_at } => {
+            AuthCredentials::OAuth {
+                access_token,
+                refresh_token,
+                expires_at,
+            } => {
                 // Check if token is expired and refresh if needed
                 if let Some(exp) = expires_at {
                     let now = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
                         .as_secs();
-                    
+
                     if now >= exp {
                         if let Some(github_token) = refresh_token {
                             let new_creds = Self::get_copilot_token(&github_token).await?;
                             self.auth.set_credentials(new_creds.clone()).await?;
-                            
+
                             if let AuthCredentials::OAuth { access_token, .. } = new_creds {
-                                headers.insert("Authorization".to_string(), format!("Bearer {}", access_token));
+                                headers.insert(
+                                    "Authorization".to_string(),
+                                    format!("Bearer {}", access_token),
+                                );
                             }
                         } else {
-                            return Err(crate::Error::Other(anyhow::anyhow!("Token expired and no refresh token available")));
+                            return Err(crate::Error::Other(anyhow::anyhow!(
+                                "Token expired and no refresh token available"
+                            )));
                         }
                     } else {
-                        headers.insert("Authorization".to_string(), format!("Bearer {}", access_token));
+                        headers.insert(
+                            "Authorization".to_string(),
+                            format!("Bearer {}", access_token),
+                        );
                     }
                 } else {
-                    headers.insert("Authorization".to_string(), format!("Bearer {}", access_token));
+                    headers.insert(
+                        "Authorization".to_string(),
+                        format!("Bearer {}", access_token),
+                    );
                 }
             }
             _ => {
@@ -378,17 +411,17 @@ impl GitHubCopilotProvider {
                 )));
             }
         }
-        
+
         Ok(headers)
     }
-    
+
     fn convert_messages(&self, messages: Vec<Message>) -> Vec<CopilotMessage> {
         messages
             .into_iter()
             .map(|msg| self.convert_message(msg))
             .collect()
     }
-    
+
     fn convert_message(&self, message: Message) -> CopilotMessage {
         let role = match message.role {
             MessageRole::System => "system",
@@ -397,7 +430,7 @@ impl GitHubCopilotProvider {
             MessageRole::Tool => "tool",
         }
         .to_string();
-        
+
         let content = match message.content {
             MessageContent::Text(text) => CopilotContent::Text(text),
             MessageContent::Parts(parts) => {
@@ -429,7 +462,7 @@ impl GitHubCopilotProvider {
                 CopilotContent::Parts(copilot_parts)
             }
         };
-        
+
         let tool_calls = message.tool_calls.map(|calls| {
             calls
                 .into_iter()
@@ -443,7 +476,7 @@ impl GitHubCopilotProvider {
                 })
                 .collect()
         });
-        
+
         CopilotMessage {
             role,
             content,
@@ -452,7 +485,7 @@ impl GitHubCopilotProvider {
             tool_call_id: message.tool_call_id,
         }
     }
-    
+
     fn convert_tools(&self, tools: Vec<ToolDefinition>) -> Vec<CopilotTool> {
         tools
             .into_iter()
@@ -466,7 +499,7 @@ impl GitHubCopilotProvider {
             })
             .collect()
     }
-    
+
     fn parse_finish_reason(&self, reason: Option<String>) -> FinishReason {
         match reason.as_deref() {
             Some("stop") => FinishReason::Stop,
@@ -499,7 +532,7 @@ impl LanguageModel for GitHubCopilotModelWithProvider {
         let headers = self.provider.get_auth_headers().await?;
         let copilot_messages = self.provider.convert_messages(messages);
         let tools = self.provider.convert_tools(options.tools);
-        
+
         let request = CopilotRequest {
             model: self.model.id.clone(),
             messages: copilot_messages,
@@ -509,23 +542,26 @@ impl LanguageModel for GitHubCopilotModelWithProvider {
             stop: options.stop_sequences,
             stream: Some(false),
         };
-        
+
         let mut req_builder = self
             .provider
             .client
-            .post(&format!("{}/v1/chat/completions", GitHubCopilotProvider::API_BASE))
+            .post(&format!(
+                "{}/v1/chat/completions",
+                GitHubCopilotProvider::API_BASE
+            ))
             .header("Content-Type", "application/json");
-            
+
         for (key, value) in headers {
             req_builder = req_builder.header(&key, &value);
         }
-        
+
         let response = req_builder
             .json(&request)
             .send()
             .await
             .map_err(|e| crate::Error::Other(anyhow::anyhow!("Request failed: {}", e)))?;
-            
+
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
@@ -535,32 +571,30 @@ impl LanguageModel for GitHubCopilotModelWithProvider {
                 body
             )));
         }
-        
+
         let copilot_response: CopilotResponse = response
             .json()
             .await
             .map_err(|e| crate::Error::Other(anyhow::anyhow!("Failed to parse response: {}", e)))?;
-            
+
         let choice = copilot_response
             .choices
             .into_iter()
             .next()
             .ok_or_else(|| crate::Error::Other(anyhow::anyhow!("No choices in response")))?;
-            
+
         let content = match choice.message.content {
             CopilotContent::Text(text) => text,
-            CopilotContent::Parts(parts) => {
-                parts
-                    .into_iter()
-                    .filter_map(|part| match part {
-                        CopilotContentPart::Text { text } => Some(text),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>()
-                    .join("")
-            }
+            CopilotContent::Parts(parts) => parts
+                .into_iter()
+                .filter_map(|part| match part {
+                    CopilotContentPart::Text { text } => Some(text),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join(""),
         };
-        
+
         let tool_calls = choice
             .message
             .tool_calls
@@ -573,7 +607,7 @@ impl LanguageModel for GitHubCopilotModelWithProvider {
                     .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
             })
             .collect();
-            
+
         Ok(GenerateResult {
             content,
             tool_calls,
@@ -585,7 +619,7 @@ impl LanguageModel for GitHubCopilotModelWithProvider {
             finish_reason: self.provider.parse_finish_reason(choice.finish_reason),
         })
     }
-    
+
     async fn stream(
         &self,
         messages: Vec<Message>,
@@ -597,15 +631,15 @@ impl LanguageModel for GitHubCopilotModelWithProvider {
             "Streaming not yet implemented for GitHub Copilot"
         )))
     }
-    
+
     fn supports_tools(&self) -> bool {
         self.model.supports_tools
     }
-    
+
     fn supports_vision(&self) -> bool {
         self.model.supports_vision
     }
-    
+
     fn supports_caching(&self) -> bool {
         self.model.supports_caching
     }
@@ -615,13 +649,13 @@ impl LanguageModel for GitHubCopilotModelWithProvider {
 pub enum GitHubCopilotError {
     #[error("Device code flow failed")]
     DeviceCodeFailed,
-    
+
     #[error("Token exchange failed")]
     TokenExchangeFailed,
-    
+
     #[error("Authentication expired")]
     AuthenticationExpired,
-    
+
     #[error("Copilot token request failed")]
     CopilotTokenFailed,
 }
@@ -629,7 +663,7 @@ pub enum GitHubCopilotError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_default_models() {
         let models = GitHubCopilotProvider::default_models();
@@ -638,14 +672,14 @@ mod tests {
         assert!(models.contains_key("gpt-4o-mini"));
         assert!(models.contains_key("o1-preview"));
     }
-    
+
     #[test]
     fn test_model_capabilities() {
         let models = GitHubCopilotProvider::default_models();
         let gpt4o = models.get("gpt-4o").unwrap();
         assert!(gpt4o.supports_tools);
         assert!(gpt4o.supports_vision);
-        
+
         let o1 = models.get("o1-preview").unwrap();
         assert!(!o1.supports_tools);
         assert!(!o1.supports_vision);

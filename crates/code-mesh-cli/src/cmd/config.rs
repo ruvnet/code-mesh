@@ -85,7 +85,7 @@ impl Config {
     /// Load configuration from file
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path()?;
-        
+
         if !config_path.exists() {
             // Create default configuration
             let config = Self::default();
@@ -108,11 +108,12 @@ impl Config {
     /// Save configuration to file
     pub fn save(&self) -> Result<()> {
         let config_path = Self::config_path()?;
-        
+
         // Ensure config directory exists
         if let Some(parent) = config_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| CliError::Config(format!("Failed to create config directory: {}", e)))?;
+            fs::create_dir_all(parent).map_err(|e| {
+                CliError::Config(format!("Failed to create config directory: {}", e))
+            })?;
         }
 
         let content = serde_json::to_string_pretty(self)
@@ -128,7 +129,7 @@ impl Config {
     pub fn config_path() -> Result<PathBuf> {
         let config_dir = dirs::config_dir()
             .ok_or_else(|| CliError::Config("Unable to determine config directory".to_string()))?;
-        
+
         Ok(config_dir.join("code-mesh").join("config.json"))
     }
 
@@ -136,7 +137,7 @@ impl Config {
     pub fn data_dir() -> Result<PathBuf> {
         let data_dir = dirs::data_dir()
             .ok_or_else(|| CliError::Config("Unable to determine data directory".to_string()))?;
-        
+
         Ok(data_dir.join("code-mesh"))
     }
 
@@ -144,15 +145,15 @@ impl Config {
     pub fn cache_dir() -> Result<PathBuf> {
         let cache_dir = dirs::cache_dir()
             .ok_or_else(|| CliError::Config("Unable to determine cache directory".to_string()))?;
-        
+
         Ok(cache_dir.join("code-mesh"))
     }
 
     /// Get current profile
     pub fn current_profile(&self) -> Result<&Profile> {
-        self.profiles
-            .get(&self.default_profile)
-            .ok_or_else(|| CliError::Config(format!("Profile '{}' not found", self.default_profile)))
+        self.profiles.get(&self.default_profile).ok_or_else(|| {
+            CliError::Config(format!("Profile '{}' not found", self.default_profile))
+        })
     }
 
     /// Get mutable reference to current profile
@@ -171,13 +172,15 @@ impl Config {
     /// Remove a profile
     pub fn remove_profile(&mut self, name: &str) -> Result<()> {
         if name == "default" {
-            return Err(CliError::Config("Cannot remove default profile".to_string()));
+            return Err(CliError::Config(
+                "Cannot remove default profile".to_string(),
+            ));
         }
-        
+
         if name == self.default_profile {
             self.default_profile = "default".to_string();
         }
-        
+
         self.profiles.remove(name);
         Ok(())
     }
@@ -187,7 +190,7 @@ impl Config {
         if !self.profiles.contains_key(name) {
             return Err(CliError::Config(format!("Profile '{}' not found", name)));
         }
-        
+
         self.default_profile = name.to_string();
         Ok(())
     }
@@ -195,13 +198,13 @@ impl Config {
     /// Migrate configuration to newer version
     fn migrate(&mut self) -> Result<()> {
         let current_version = env!("CARGO_PKG_VERSION");
-        
+
         if self.version != current_version {
             // Perform migration based on version differences
             // For now, just update the version
             self.version = current_version.to_string();
         }
-        
+
         Ok(())
     }
 
@@ -217,9 +220,9 @@ impl Config {
 
         // Validate each profile
         for (name, profile) in &self.profiles {
-            profile.validate().map_err(|e| {
-                CliError::Config(format!("Profile '{}' is invalid: {}", name, e))
-            })?;
+            profile
+                .validate()
+                .map_err(|e| CliError::Config(format!("Profile '{}' is invalid: {}", name, e)))?;
         }
 
         Ok(())
@@ -263,13 +266,15 @@ impl Profile {
 
     /// Get effective model (with fallback)
     pub fn effective_model(&self) -> Option<String> {
-        self.default_model.clone()
+        self.default_model
+            .clone()
             .or_else(|| Some("anthropic/claude-3-sonnet-20240229".to_string()))
     }
 
     /// Get effective provider (with fallback)
     pub fn effective_provider(&self) -> Option<String> {
-        self.default_provider.clone()
+        self.default_provider
+            .clone()
             .or_else(|| Some("anthropic".to_string()))
     }
 }
@@ -310,7 +315,7 @@ impl ConfigManager {
     /// Initialize configuration for a new installation
     pub fn init(force: bool) -> Result<()> {
         let config_path = Config::config_path()?;
-        
+
         if config_path.exists() && !force {
             return Err(CliError::Config(
                 "Configuration already exists. Use --force to overwrite".to_string(),
@@ -323,10 +328,10 @@ impl ConfigManager {
         // Create necessary directories
         let data_dir = Config::data_dir()?;
         let cache_dir = Config::cache_dir()?;
-        
+
         fs::create_dir_all(&data_dir)
             .map_err(|e| CliError::Config(format!("Failed to create data directory: {}", e)))?;
-        
+
         fs::create_dir_all(&cache_dir)
             .map_err(|e| CliError::Config(format!("Failed to create cache directory: {}", e)))?;
 

@@ -1,6 +1,6 @@
 //! Init command implementation - Project initialization
 
-use crate::cmd::{CliError, Result, UI, Config};
+use crate::cmd::{CliError, Config, Result, UI};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -8,9 +8,12 @@ use std::path::{Path, PathBuf};
 pub async fn execute(path: &str) -> Result<()> {
     let mut ui = UI::new();
     let project_path = PathBuf::from(path);
-    
+
     ui.print_logo()?;
-    ui.info(&format!("Initializing Code Mesh project in: {}", project_path.display()))?;
+    ui.info(&format!(
+        "Initializing Code Mesh project in: {}",
+        project_path.display()
+    ))?;
     ui.println("")?;
 
     // Validate path
@@ -46,7 +49,7 @@ pub async fn execute(path: &str) -> Result<()> {
             "Code Mesh is already initialized in this directory. Overwrite?",
             false,
         )?;
-        
+
         if !overwrite {
             ui.info("Initialization cancelled")?;
             return Ok(());
@@ -57,7 +60,7 @@ pub async fn execute(path: &str) -> Result<()> {
 
     // Create project configuration
     let progress = ui.progress_bar(5, "Initializing project...");
-    
+
     // Step 1: Create .code-mesh directory
     progress.set_message("Creating configuration directory...");
     create_config_directory(&project_path)?;
@@ -98,10 +101,11 @@ pub async fn execute(path: &str) -> Result<()> {
 /// Create the .code-mesh configuration directory
 fn create_config_directory(project_path: &Path) -> Result<()> {
     let config_dir = project_path.join(".code-mesh");
-    
+
     if config_dir.exists() {
-        fs::remove_dir_all(&config_dir)
-            .map_err(|e| CliError::FileSystem(format!("Failed to remove existing config: {}", e)))?;
+        fs::remove_dir_all(&config_dir).map_err(|e| {
+            CliError::FileSystem(format!("Failed to remove existing config: {}", e))
+        })?;
     }
 
     fs::create_dir_all(&config_dir)
@@ -150,8 +154,7 @@ fn create_project_config(
     };
 
     let config_path = project_path.join(".code-mesh").join("project.json");
-    let config_json = serde_json::to_string_pretty(&config)
-        .map_err(|e| CliError::Json(e))?;
+    let config_json = serde_json::to_string_pretty(&config).map_err(|e| CliError::Json(e))?;
 
     fs::write(&config_path, config_json)
         .map_err(|e| CliError::FileSystem(format!("Failed to write project config: {}", e)))?;
@@ -162,7 +165,7 @@ fn create_project_config(
 /// Update .gitignore file
 fn update_gitignore(project_path: &Path) -> Result<()> {
     let gitignore_path = project_path.join(".gitignore");
-    
+
     let gitignore_entries = vec![
         "# Code Mesh",
         ".code-mesh/sessions/",
@@ -185,7 +188,7 @@ fn update_gitignore(project_path: &Path) -> Result<()> {
     if !existing_content.is_empty() && !existing_content.ends_with('\n') {
         existing_content.push('\n');
     }
-    
+
     existing_content.push('\n');
     for entry in gitignore_entries {
         existing_content.push_str(entry);
@@ -248,20 +251,20 @@ fn ensure_global_config() -> Result<()> {
 fn show_next_steps(ui: &mut UI, project_path: &Path) -> Result<()> {
     ui.info("Next steps:")?;
     ui.println("")?;
-    
+
     ui.dim("1. Set up authentication:")?;
     ui.dim("   code-mesh auth login")?;
     ui.println("")?;
-    
+
     ui.dim("2. Start a conversation:")?;
     ui.dim("   code-mesh run \"Help me understand this codebase\"")?;
     ui.println("")?;
-    
+
     ui.dim("3. Use different modes:")?;
     ui.dim("   code-mesh run --mode code \"Add error handling to this function\"")?;
     ui.dim("   code-mesh run --mode review \"Review my latest changes\"")?;
     ui.println("")?;
-    
+
     ui.dim("4. Start the API server:")?;
     ui.dim("   code-mesh serve")?;
     ui.println("")?;
@@ -269,7 +272,7 @@ fn show_next_steps(ui: &mut UI, project_path: &Path) -> Result<()> {
     // Show project-specific tips
     let config_path = project_path.join(".code-mesh").join("project.json");
     ui.dim(&format!("Project configuration: {}", config_path.display()))?;
-    
+
     Ok(())
 }
 
@@ -289,10 +292,7 @@ fn default_exclude_patterns(project_type: Option<&str>) -> Vec<String> {
 
     match project_type {
         Some("rust") => {
-            patterns.extend_from_slice(&[
-                "Cargo.lock".to_string(),
-                "target/".to_string(),
-            ]);
+            patterns.extend_from_slice(&["Cargo.lock".to_string(), "target/".to_string()]);
         }
         Some("javascript") | Some("typescript") => {
             patterns.extend_from_slice(&[

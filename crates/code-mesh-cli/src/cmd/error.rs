@@ -96,12 +96,25 @@ impl CliError {
     /// Get suggestion for fixing the error
     pub fn suggestion(&self) -> Option<String> {
         match self {
-            CliError::Auth(_) => Some("Try running 'code-mesh auth login' to authenticate".to_string()),
-            CliError::Config(_) => Some("Check your configuration file or run 'code-mesh init' to create a new one".to_string()),
-            CliError::ModelNotFound(_) => Some("Run 'code-mesh models' to see available models".to_string()),
-            CliError::ProviderNotConfigured(_) => Some("Run 'code-mesh auth login' to configure the provider".to_string()),
-            CliError::Network(_) => Some("Check your internet connection and try again".to_string()),
-            CliError::FileSystem(_) => Some("Check file permissions and available disk space".to_string()),
+            CliError::Auth(_) => {
+                Some("Try running 'code-mesh auth login' to authenticate".to_string())
+            }
+            CliError::Config(_) => Some(
+                "Check your configuration file or run 'code-mesh init' to create a new one"
+                    .to_string(),
+            ),
+            CliError::ModelNotFound(_) => {
+                Some("Run 'code-mesh models' to see available models".to_string())
+            }
+            CliError::ProviderNotConfigured(_) => {
+                Some("Run 'code-mesh auth login' to configure the provider".to_string())
+            }
+            CliError::Network(_) => {
+                Some("Check your internet connection and try again".to_string())
+            }
+            CliError::FileSystem(_) => {
+                Some("Check file permissions and available disk space".to_string())
+            }
             CliError::Server(_) => Some("The server may be down. Try again later".to_string()),
             _ => None,
         }

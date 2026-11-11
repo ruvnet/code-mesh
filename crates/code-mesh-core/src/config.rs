@@ -17,25 +17,25 @@ use std::path::PathBuf;
 pub struct Config {
     /// General application settings
     pub app: AppConfig,
-    
+
     /// Provider configurations
     pub providers: HashMap<String, ProviderConfig>,
-    
+
     /// Tool configurations
     pub tools: ToolConfig,
-    
+
     /// Storage configuration
     pub storage: StorageConfig,
-    
+
     /// Authentication configuration
     pub auth: AuthConfig,
-    
+
     /// Session configuration
     pub session: SessionConfig,
-    
+
     /// Memory configuration
     pub memory: MemoryConfig,
-    
+
     /// Agent configuration
     pub agent: AgentConfig,
 }
@@ -60,19 +60,19 @@ impl Default for Config {
 pub struct AppConfig {
     /// Application name
     pub name: String,
-    
+
     /// Version information
     pub version: String,
-    
+
     /// Data directory path
     pub data_dir: Option<PathBuf>,
-    
+
     /// Configuration directory path
     pub config_dir: Option<PathBuf>,
-    
+
     /// Log level
     pub log_level: String,
-    
+
     /// Feature flags
     pub features: FeatureConfig,
 }
@@ -95,16 +95,16 @@ impl Default for AppConfig {
 pub struct FeatureConfig {
     /// Enable compression for storage
     pub compression: bool,
-    
+
     /// Enable file watching
     pub file_watching: bool,
-    
+
     /// Enable advanced cryptography
     pub advanced_crypto: bool,
-    
+
     /// Enable telemetry
     pub telemetry: bool,
-    
+
     /// Enable experimental features
     pub experimental: bool,
 }
@@ -126,34 +126,34 @@ impl Default for FeatureConfig {
 pub struct ProviderConfig {
     /// Provider ID
     pub id: String,
-    
+
     /// Provider name
     pub name: String,
-    
+
     /// Base URL for API
     pub base_url: Option<String>,
-    
+
     /// API version
     pub api_version: Option<String>,
-    
+
     /// Default model to use
     pub default_model: Option<String>,
-    
+
     /// Model configurations
     pub models: HashMap<String, ModelConfig>,
-    
+
     /// Provider-specific options
     pub options: HashMap<String, serde_json::Value>,
-    
+
     /// Rate limiting configuration
     pub rate_limit: RateLimitConfig,
-    
+
     /// Timeout configuration
     pub timeout: TimeoutConfig,
-    
+
     /// Retry configuration
     pub retry: RetryConfig,
-    
+
     /// Whether this provider is enabled
     pub enabled: bool,
 }
@@ -181,34 +181,34 @@ impl Default for ProviderConfig {
 pub struct ModelConfig {
     /// Model ID
     pub id: String,
-    
+
     /// Model name
     pub name: String,
-    
+
     /// Maximum context length
     pub max_context: Option<u32>,
-    
+
     /// Maximum output tokens
     pub max_output: Option<u32>,
-    
+
     /// Default temperature
     pub temperature: Option<f32>,
-    
+
     /// Supports tool calling
     pub supports_tools: bool,
-    
+
     /// Supports vision/images
     pub supports_vision: bool,
-    
+
     /// Supports streaming
     pub supports_streaming: bool,
-    
+
     /// Supports caching
     pub supports_caching: bool,
-    
+
     /// Cost information
     pub cost: CostConfig,
-    
+
     /// Model-specific options
     pub options: HashMap<String, serde_json::Value>,
 }
@@ -236,16 +236,16 @@ impl Default for ModelConfig {
 pub struct CostConfig {
     /// Input tokens cost per 1K tokens
     pub input_cost_per_1k: f64,
-    
+
     /// Output tokens cost per 1K tokens
     pub output_cost_per_1k: f64,
-    
+
     /// Cache read cost per 1K tokens
     pub cache_read_cost_per_1k: Option<f64>,
-    
+
     /// Cache write cost per 1K tokens
     pub cache_write_cost_per_1k: Option<f64>,
-    
+
     /// Currency for costs
     pub currency: String,
 }
@@ -267,10 +267,10 @@ impl Default for CostConfig {
 pub struct RateLimitConfig {
     /// Requests per minute
     pub requests_per_minute: Option<u32>,
-    
+
     /// Tokens per minute
     pub tokens_per_minute: Option<u32>,
-    
+
     /// Concurrent requests
     pub concurrent_requests: Option<u32>,
 }
@@ -290,10 +290,10 @@ impl Default for RateLimitConfig {
 pub struct TimeoutConfig {
     /// Connect timeout in seconds
     pub connect: u64,
-    
+
     /// Request timeout in seconds
     pub request: u64,
-    
+
     /// Stream timeout in seconds
     pub stream: u64,
 }
@@ -313,13 +313,13 @@ impl Default for TimeoutConfig {
 pub struct RetryConfig {
     /// Maximum number of retries
     pub max_retries: u32,
-    
+
     /// Base delay in milliseconds
     pub base_delay: u64,
-    
+
     /// Maximum delay in milliseconds
     pub max_delay: u64,
-    
+
     /// Exponential backoff multiplier
     pub backoff_multiplier: f64,
 }
@@ -340,16 +340,16 @@ impl Default for RetryConfig {
 pub struct ToolConfig {
     /// Enabled tools
     pub enabled: Vec<String>,
-    
+
     /// Disabled tools
     pub disabled: Vec<String>,
-    
+
     /// Tool-specific configurations
     pub tool_configs: HashMap<String, ToolSpecificConfig>,
-    
+
     /// Default permission level
     pub default_permission: String,
-    
+
     /// Sandbox configuration
     pub sandbox: SandboxConfig,
 }
@@ -371,16 +371,16 @@ impl Default for ToolConfig {
 pub struct ToolSpecificConfig {
     /// Permission level for this tool
     pub permission: String,
-    
+
     /// Allowed file patterns
     pub allowed_patterns: Vec<String>,
-    
+
     /// Denied file patterns
     pub denied_patterns: Vec<String>,
-    
+
     /// Maximum file size in bytes
     pub max_file_size: Option<u64>,
-    
+
     /// Tool-specific options
     pub options: HashMap<String, serde_json::Value>,
 }
@@ -402,19 +402,19 @@ impl Default for ToolSpecificConfig {
 pub struct SandboxConfig {
     /// Enable sandboxing
     pub enabled: bool,
-    
+
     /// Allowed directories
     pub allowed_dirs: Vec<PathBuf>,
-    
+
     /// Denied directories
     pub denied_dirs: Vec<PathBuf>,
-    
+
     /// Network access allowed
     pub network_access: bool,
-    
+
     /// Maximum execution time in seconds
     pub max_execution_time: u64,
-    
+
     /// Maximum memory usage in MB
     pub max_memory_mb: Option<u64>,
 }
@@ -437,16 +437,16 @@ impl Default for SandboxConfig {
 pub struct StorageConfig {
     /// Storage backend type
     pub backend: String,
-    
+
     /// Connection string or path
     pub connection: String,
-    
+
     /// Enable compression
     pub compression: bool,
-    
+
     /// Encryption configuration
     pub encryption: EncryptionConfig,
-    
+
     /// Backup configuration
     pub backup: BackupConfig,
 }
@@ -468,10 +468,10 @@ impl Default for StorageConfig {
 pub struct EncryptionConfig {
     /// Enable encryption
     pub enabled: bool,
-    
+
     /// Encryption algorithm
     pub algorithm: String,
-    
+
     /// Key derivation method
     pub key_derivation: String,
 }
@@ -491,13 +491,13 @@ impl Default for EncryptionConfig {
 pub struct BackupConfig {
     /// Enable automatic backups
     pub enabled: bool,
-    
+
     /// Backup interval in hours
     pub interval_hours: u64,
-    
+
     /// Maximum number of backups to keep
     pub max_backups: u32,
-    
+
     /// Backup directory
     pub backup_dir: Option<PathBuf>,
 }
@@ -518,10 +518,10 @@ impl Default for BackupConfig {
 pub struct AuthConfig {
     /// Storage backend for auth data
     pub storage_backend: String,
-    
+
     /// Token refresh interval in minutes
     pub refresh_interval: u64,
-    
+
     /// Security configuration
     pub security: SecurityConfig,
 }
@@ -541,10 +541,10 @@ impl Default for AuthConfig {
 pub struct SecurityConfig {
     /// Enable key rotation
     pub key_rotation: bool,
-    
+
     /// Key rotation interval in days
     pub rotation_interval_days: u64,
-    
+
     /// Enable audit logging
     pub audit_logging: bool,
 }
@@ -564,13 +564,13 @@ impl Default for SecurityConfig {
 pub struct SessionConfig {
     /// Maximum number of messages per session
     pub max_messages: u32,
-    
+
     /// Maximum session age in hours
     pub max_age_hours: u64,
-    
+
     /// Auto-save interval in seconds
     pub auto_save_interval: u64,
-    
+
     /// Context window configuration
     pub context_window: ContextWindowConfig,
 }
@@ -591,13 +591,13 @@ impl Default for SessionConfig {
 pub struct ContextWindowConfig {
     /// Maximum tokens in context
     pub max_tokens: u32,
-    
+
     /// Context trimming strategy
     pub trim_strategy: String,
-    
+
     /// Preserve system messages
     pub preserve_system: bool,
-    
+
     /// Preserve recent messages count
     pub preserve_recent: u32,
 }
@@ -618,16 +618,16 @@ impl Default for ContextWindowConfig {
 pub struct MemoryConfig {
     /// Memory backend type
     pub backend: String,
-    
+
     /// Maximum memory entries
     pub max_entries: u32,
-    
+
     /// Memory TTL in hours
     pub ttl_hours: u64,
-    
+
     /// Enable memory compression
     pub compression: bool,
-    
+
     /// Memory indexing configuration
     pub indexing: IndexingConfig,
 }
@@ -649,10 +649,10 @@ impl Default for MemoryConfig {
 pub struct IndexingConfig {
     /// Enable semantic search
     pub semantic_search: bool,
-    
+
     /// Enable full-text search
     pub full_text_search: bool,
-    
+
     /// Embedding model for semantic search
     pub embedding_model: Option<String>,
 }
@@ -672,13 +672,13 @@ impl Default for IndexingConfig {
 pub struct AgentConfig {
     /// Maximum concurrent agents
     pub max_concurrent: u32,
-    
+
     /// Agent timeout in seconds
     pub timeout_seconds: u64,
-    
+
     /// Enable agent collaboration
     pub collaboration: bool,
-    
+
     /// Default agent capabilities
     pub default_capabilities: Vec<String>,
 }
@@ -716,17 +716,22 @@ impl ConfigManager {
     /// Load configuration from file
     pub async fn load_from_file<P: Into<PathBuf>>(&mut self, path: P) -> Result<()> {
         let path = path.into();
-        let content = std::fs::read_to_string(&path)
-            .map_err(|e| Error::Io(e))?;
-        
+        let content = std::fs::read_to_string(&path).map_err(|e| Error::Io(e))?;
+
         let config: Config = match path.extension().and_then(|s| s.to_str()) {
             Some("json") => serde_json::from_str(&content)?,
             Some("toml") => toml::from_str(&content)
                 .map_err(|e| Error::Other(anyhow::anyhow!("TOML parse error: {}", e)))?,
             Some("yaml") | Some("yml") => {
-                return Err(Error::Other(anyhow::anyhow!("YAML support not implemented")));
+                return Err(Error::Other(anyhow::anyhow!(
+                    "YAML support not implemented"
+                )));
             }
-            _ => return Err(Error::Other(anyhow::anyhow!("Unsupported config file format"))),
+            _ => {
+                return Err(Error::Other(anyhow::anyhow!(
+                    "Unsupported config file format"
+                )))
+            }
         };
 
         self.config = config;
@@ -738,17 +743,17 @@ impl ConfigManager {
     pub fn load_from_env(&mut self) -> Result<()> {
         // Load environment variables with CODE_MESH_ prefix
         let mut config = self.config.clone();
-        
+
         if let Ok(log_level) = std::env::var("CODE_MESH_LOG_LEVEL") {
             config.app.log_level = log_level;
         }
-        
+
         if let Ok(data_dir) = std::env::var("CODE_MESH_DATA_DIR") {
             config.app.data_dir = Some(PathBuf::from(data_dir));
         }
-        
+
         // Add more environment variable mappings as needed
-        
+
         self.config = config;
         Ok(())
     }
@@ -756,14 +761,18 @@ impl ConfigManager {
     /// Save configuration to file
     pub async fn save_to_file<P: Into<PathBuf>>(&self, path: P) -> Result<()> {
         let path = path.into();
-        
+
         let content = match path.extension().and_then(|s| s.to_str()) {
             Some("json") => serde_json::to_string_pretty(&self.config)?,
             Some("toml") => toml::to_string_pretty(&self.config)
                 .map_err(|e| Error::Other(anyhow::anyhow!("TOML serialize error: {}", e)))?,
-            _ => return Err(Error::Other(anyhow::anyhow!("Unsupported config file format"))),
+            _ => {
+                return Err(Error::Other(anyhow::anyhow!(
+                    "Unsupported config file format"
+                )))
+            }
         };
-        
+
         std::fs::write(path, content)?;
         Ok(())
     }
