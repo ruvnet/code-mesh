@@ -134,7 +134,7 @@ impl Utils {
 
     /// Check if terminal supports colors
     pub fn supports_color() -> bool {
-        atty::is(atty::Stream::Stderr) && 
+        std::io::IsTerminal::is_terminal(&std::io::stderr()) && 
         std::env::var("NO_COLOR").is_err() &&
         std::env::var("TERM").map(|t| t != "dumb").unwrap_or(true)
     }

@@ -384,13 +384,14 @@ fn extract_text_from_html(html: &str) -> Result<String, ToolError> {
     Ok(cleaned.trim().to_string())
 }
 
-/// Convert HTML to Markdown using html2md
+/// Convert HTML to Markdown using htmd
 fn convert_html_to_markdown(html: &str) -> Result<String, ToolError> {
     // Clean the HTML first
     let clean_html = clean_html_for_markdown(html);
     
     // Convert to markdown
-    let markdown = html2md::parse_html(&clean_html);
+    let markdown = htmd::convert(&clean_html)
+        .map_err(|e| ToolError::ExecutionFailed(format!("HTML to Markdown conversion failed: {e}")))?;
     
     // Clean up the markdown
     let re = regex::Regex::new(r"\n\s*\n\s*\n").unwrap();
@@ -404,7 +405,11 @@ fn clean_html_for_markdown(html: &str) -> String {
     let mut cleaned = html.to_string();
     
     // Remove script and style tags
-    let re = regex::Regex::new(r"(?s)<(script|style|noscript)[^>]*>.*?</\1>").unwrap();
+    // The regex crate has no backreferences, so match each tag pair explicitly.
+    let re = regex::Regex::new(
+        r"(?is)<script\b[^>]*>.*?</script>|<style\b[^>]*>.*?</style>|<noscript\b[^>]*>.*?</noscript>",
+    )
+    .unwrap();
     cleaned = re.replace_all(&cleaned, "").to_string();
     
     // Remove comments
@@ -416,4 +421,23 @@ fn clean_html_for_markdown(html: &str) -> String {
     cleaned = re.replace_all(&cleaned, "").to_string();
     
     cleaned
+}
+#[cfg(test)]
+mod clean_html_tests {
+    use super::{clean_html_for_markdown, convert_html_to_markdown};
+
+    #[test]
+    fn strips_script_style_and_noscript_blocks() {
+        let html = "<p>keep</p><script type=\"x\">var a = 1;</script>\
+                    <STYLE>p{}</STYLE><noscript>\nno js\n</noscript><p>also</p>";
+        let out = clean_html_for_markdown(html);
+        assert_eq!(out, "<p>keep</p><p>also</p>");
+    }
+
+    #[test]
+    fn converts_html_to_markdown_without_scripts() {
+        let html = "<h1>Title</h1><script>alert(1)</script><p>Some <strong>bold</strong> text.</p>";
+        let md = convert_html_to_markdown(html).unwrap();
+        assert_eq!(md, "# Title\n\nSome **bold** text.");
+    }
 }

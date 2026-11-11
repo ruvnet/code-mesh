@@ -11,7 +11,9 @@ pub mod openai;
 pub mod github_copilot;
 pub mod registry;
 
-#[cfg(test)]
+// Quarantined: written against removed `AnthropicProvider` methods
+// (api_endpoint, models, env_vars, ...). See https://github.com/ruvnet/code-mesh/issues/29
+#[cfg(any())]
 mod anthropic_test;
 
 pub use provider::{

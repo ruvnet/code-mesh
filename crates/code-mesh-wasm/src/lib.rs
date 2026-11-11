@@ -157,10 +157,12 @@ pub fn benchmark_performance(iterations: u32) -> Result<JsValue, JsValue> {
         "ops_per_second": (iterations as f64) / (duration / 1000.0)
     });
     
-    Ok(serde_wasm_bindgen::to_value(&result)?)
+    // json_compatible() emits a plain JS object; the default serializer turns
+    // a serde_json map into a JS `Map`, so `result.iterations` was undefined.
+    Ok(result.serialize(&serde_wasm_bindgen::Serializer::json_compatible())?)
 }
 
 #[wasm_bindgen(start)]
-pub fn main() {
+pub fn start() {
     console_log!("Code-Mesh WASM module loaded successfully!");
 }

@@ -15,6 +15,7 @@ use uuid::Uuid;
 use super::{Tool, ToolContext, ToolResult, ToolError};
 
 /// File watcher tool for monitoring file system changes
+#[derive(Clone)]
 pub struct FileWatcherTool {
     active_watchers: Arc<RwLock<HashMap<String, WatcherInstance>>>,
 }

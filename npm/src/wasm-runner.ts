@@ -18,7 +18,7 @@ interface CodeMeshWasm {
     greet(name: string): void;
     process_data(data: string): string;
     benchmark_performance(iterations: number): any;
-    main(): void;
+    start(): void;
     default?: any;
 }
 

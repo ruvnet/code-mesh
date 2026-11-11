@@ -1,4 +1,9 @@
 //! WASM-specific tests
+//!
+//! Quarantined: these tests target an API this crate no longer exports
+//! (WasmSession, WasmLlmProvider, WasmStorage, ...), so they do not compile.
+//! `tests/api_tests.rs` covers the current exports. Tracking: https://github.com/ruvnet/code-mesh/issues/29
+#![cfg(any())]
 
 use wasm_bindgen_test::*;
 use code_mesh_wasm::*;

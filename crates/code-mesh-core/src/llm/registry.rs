@@ -184,7 +184,7 @@ pub async fn create_registry_with_models_dev() -> crate::Result<LLMRegistry> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::storage::FileAuthStorage;
+    use crate::auth::FileAuthStorage;
     use tempfile::tempdir;
     
     #[tokio::test]

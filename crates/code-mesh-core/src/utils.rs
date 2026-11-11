@@ -109,17 +109,22 @@ pub mod string {
     
     /// Convert camelCase to snake_case
     pub fn camel_to_snake(s: &str) -> String {
-        let mut result = String::new();
-        let mut prev_lowercase = false;
-        
-        for c in s.chars() {
-            if c.is_uppercase() && prev_lowercase {
-                result.push('_');
+        let chars: Vec<char> = s.chars().collect();
+        let mut result = String::with_capacity(s.len() + 4);
+
+        for (i, &c) in chars.iter().enumerate() {
+            if c.is_uppercase() && i > 0 {
+                let prev = chars[i - 1];
+                let next_is_lower = chars.get(i + 1).is_some_and(|n| n.is_lowercase());
+                // Word boundary: "camelCase" -> "camel_case", and the end of an
+                // acronym: "HTTPSConnection" -> "https_connection".
+                if prev.is_lowercase() || prev.is_ascii_digit() || (prev.is_uppercase() && next_is_lower) {
+                    result.push('_');
+                }
             }
-            result.push(c.to_lowercase().next().unwrap_or(c));
-            prev_lowercase = c.is_lowercase();
+            result.extend(c.to_lowercase());
         }
-        
+
         result
     }
     
@@ -441,7 +446,7 @@ mod tests {
     #[test]
     fn test_camel_to_snake() {
         assert_eq!(string::camel_to_snake("camelCase"), "camel_case");
-        assert_eq!(string::camel_to_snake("HTTPSConnection"), "h_t_t_p_s_connection");
+        assert_eq!(string::camel_to_snake("HTTPSConnection"), "https_connection");
         assert_eq!(string::camel_to_snake("simple"), "simple");
     }
 

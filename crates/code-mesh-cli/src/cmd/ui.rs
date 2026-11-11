@@ -187,7 +187,7 @@ impl UI {
 
     /// Check if we have a TTY
     pub fn is_tty(&self) -> bool {
-        atty::is(atty::Stream::Stderr)
+        std::io::IsTerminal::is_terminal(&std::io::stderr())
     }
 }
 

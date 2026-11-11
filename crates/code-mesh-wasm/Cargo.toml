@@ -13,7 +13,7 @@ keywords = ["wasm", "webassembly", "javascript", "browser", "swarm"]
 categories = ["wasm", "web-programming", "development-tools", "api-bindings"]
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # Core functionality - simplified for WASM
@@ -91,10 +91,6 @@ thiserror = "1.0"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
-proptest = "1.0"
-mockall = "0.12"
-tempfile = "3.0"
-insta = "1.0"
 
 [package.metadata.wasm-pack]
 "wasm-pack" = "0.12"

@@ -14,8 +14,11 @@
 //! - **🧠 Agent Orchestration**: Multi-agent coordination for complex coding workflows
 //! 
 //! ## Quick Start
+//!
+//! The examples below describe the planned API and are not compiled; see
+//! https://github.com/ruvnet/code-mesh/issues/29.
 //! 
-//! ```rust
+//! ```rust,ignore
 //! use code_mesh_core::{Session, LanguageModel, ProviderRegistry, ToolRegistry};
 //! use tokio;
 //! 
@@ -83,7 +86,7 @@
 //! 
 //! ### Multi-Provider Setup
 //! 
-//! ```rust
+//! ```rust,ignore
 //! use code_mesh_core::{ProviderRegistry, Provider};
 //! 
 //! let mut registry = ProviderRegistry::new();
@@ -101,7 +104,7 @@
 //! 
 //! ### Tool Integration
 //! 
-//! ```rust
+//! ```rust,ignore
 //! use code_mesh_core::{ToolRegistry, FileTools, BashTool};
 //! 
 //! let mut tools = ToolRegistry::new();
@@ -115,7 +118,7 @@
 //! 
 //! ### Session Persistence
 //! 
-//! ```rust
+//! ```rust,ignore
 //! use code_mesh_core::{SessionManager, Storage};
 //! 
 //! let storage = Storage::new("./sessions")?;

@@ -104,14 +104,10 @@ tokio-test = "0.4"
 
 # Performance and benchmarking
 criterion = { version = "0.5", features = ["html_reports", "cargo_bench_support"] }
-pprof = { version = "0.13", features = ["criterion", "cpp"] }
-jemallocator = "0.5"
 memory-stats = "1.1"
-flame = "0.2"
-inferno = "0.11"
 
 # Memory optimization
-lru = "0.12"
+lru = "0.19"
 
 # Async optimization
 futures-concurrency = "7.4"
