@@ -1,5 +1,8 @@
 [package]
 name = "code-mesh-core"
+# benches/mod.rs is a stale module aggregator (it references a missing
+# session_benchmarks.rs), not a bench; the real benches are listed below.
+autobenches = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -56,7 +59,7 @@ url = { workspace = true }
 # Web functionality
 html5ever = { version = "0.26", optional = true }
 markup5ever_rcdom = { version = "0.2", optional = true }
-html2md = { version = "0.2", optional = true }
+htmd = { version = "=0.5.6", optional = true }
 scraper = { version = "0.18", optional = true }
 cookie = { version = "0.18", optional = true }
 http = { version = "0.2", optional = true }
@@ -102,7 +105,7 @@ memchr = "2.7"
 cfg-if = "1.0"
 
 # Storage
-rusqlite = { version = "0.31", features = ["bundled"], optional = true }
+rusqlite = { version = "0.42", features = ["bundled"], optional = true }
 
 [features]
 default = ["native", "web"]
@@ -111,18 +114,14 @@ wasm = ["dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futur
 openai = ["async-openai"]
 anthropic = []
 mistral = []
-web = ["html5ever", "markup5ever_rcdom", "html2md", "scraper", "cookie", "http"]
+web = ["html5ever", "markup5ever_rcdom", "htmd", "scraper", "cookie", "http"]
 
 [dev-dependencies]
 mockall = { workspace = true }
 tempfile = { workspace = true }
 tokio-test = "0.4"
 criterion = { workspace = true }
-pprof = { workspace = true }
-jemallocator = { workspace = true }
 memory-stats = { workspace = true }
-flame = { workspace = true }
-inferno = { workspace = true }
 lru = { workspace = true }
 dashmap = { workspace = true }
 futures = { workspace = true }

@@ -1,0 +1,16 @@
+# The images bundled with the cross 0.2.5 release are Ubuntu 16.04: their
+# OpenSSL 1.0.2 is too old for openssl-sys, and their MinGW lacks
+# GetTickCount64, which the bundled SQLite needs. Use the cross-rs `main`
+# images (Ubuntu 24.04), pinned by digest.
+
+[target.aarch64-unknown-linux-gnu]
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu@sha256:b21dae958336873d41668ec24bac664fee9f52438dc2ee59e2ca76b83d576b22"
+# code-mesh-core uses reqwest's native-tls backend, which needs the target's
+# OpenSSL headers and libraries.
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update && apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH",
+]
+
+[target.x86_64-pc-windows-gnu]
+image = "ghcr.io/cross-rs/x86_64-pc-windows-gnu@sha256:faf3c23e786ee681c32737331d76ef1a29d4c1d26f5c219ebd335a3f60d22629"

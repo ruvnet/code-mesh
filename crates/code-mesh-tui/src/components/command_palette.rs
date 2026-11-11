@@ -1,16 +1,13 @@
-use ratatui::{
-    layout::Rect,
-    widgets::{Block, Borders, List, ListItem, Paragraph},
-    style::Style,
-    text::{Line, Span},
-};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
-
-use crate::{
-    renderer::Renderer,
-    theme::Theme,
+use ratatui::{
+    layout::Rect,
+    style::Style,
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
+
+use crate::{renderer::Renderer, theme::Theme};
 
 /// Command palette for quick actions
 pub struct CommandPalette {
@@ -45,13 +42,21 @@ impl CommandPalette {
                 name: "Toggle Theme".to_string(),
                 description: "Switch between available themes".to_string(),
                 action: "toggle-theme".to_string(),
-                keywords: vec!["theme".to_string(), "color".to_string(), "appearance".to_string()],
+                keywords: vec![
+                    "theme".to_string(),
+                    "color".to_string(),
+                    "appearance".to_string(),
+                ],
             },
             Command {
                 name: "Clear Chat".to_string(),
                 description: "Clear the chat history".to_string(),
                 action: "clear-chat".to_string(),
-                keywords: vec!["clear".to_string(), "chat".to_string(), "history".to_string()],
+                keywords: vec![
+                    "clear".to_string(),
+                    "chat".to_string(),
+                    "history".to_string(),
+                ],
             },
             Command {
                 name: "Show Help".to_string(),
@@ -66,9 +71,9 @@ impl CommandPalette {
                 keywords: vec!["quit".to_string(), "exit".to_string(), "close".to_string()],
             },
         ];
-        
+
         let filtered_commands: Vec<usize> = (0..commands.len()).collect();
-        
+
         Self {
             theme: Box::new(crate::theme::DefaultTheme), // Temporary
             input: String::new(),
@@ -79,7 +84,7 @@ impl CommandPalette {
             is_open: false,
         }
     }
-    
+
     /// Open the command palette
     pub fn open(&mut self) {
         self.is_open = true;
@@ -88,23 +93,23 @@ impl CommandPalette {
         self.selected_index = 0;
         self.update_filter();
     }
-    
+
     /// Close the command palette
     pub fn close(&mut self) {
         self.is_open = false;
     }
-    
+
     /// Check if the command palette is open
     pub fn is_open(&self) -> bool {
         self.is_open
     }
-    
+
     /// Handle key events, returning the selected command if one was executed
     pub async fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<String>> {
         if !self.is_open {
             return Ok(None);
         }
-        
+
         match key.code {
             KeyCode::Esc => {
                 self.close();
@@ -175,50 +180,54 @@ impl CommandPalette {
             _ => Ok(None),
         }
     }
-    
+
     /// Update the filtered commands based on input
     fn update_filter(&mut self) {
         let query = self.input.to_lowercase();
-        
+
         if query.is_empty() {
             self.filtered_commands = (0..self.commands.len()).collect();
         } else {
-            self.filtered_commands = self.commands
+            self.filtered_commands = self
+                .commands
                 .iter()
                 .enumerate()
                 .filter(|(_, command)| {
-                    command.name.to_lowercase().contains(&query) ||
-                    command.description.to_lowercase().contains(&query) ||
-                    command.keywords.iter().any(|keyword| keyword.to_lowercase().contains(&query))
+                    command.name.to_lowercase().contains(&query)
+                        || command.description.to_lowercase().contains(&query)
+                        || command
+                            .keywords
+                            .iter()
+                            .any(|keyword| keyword.to_lowercase().contains(&query))
                 })
                 .map(|(index, _)| index)
                 .collect();
         }
-        
+
         // Reset selection if it's out of bounds
         if self.selected_index >= self.filtered_commands.len() {
             self.selected_index = 0;
         }
     }
-    
+
     /// Update theme
     pub fn update_theme(&mut self, theme: &dyn Theme) {
         // In a real implementation, we'd clone or recreate the theme
         // For now, this is a placeholder
     }
-    
+
     /// Render the command palette
     pub fn render(&self, renderer: &Renderer, area: Rect) {
         if !self.is_open {
             return;
         }
-        
+
         // Create a block for the command palette
         let block = Block::default()
             .title("Command Palette")
             .borders(Borders::ALL)
             .border_style(Style::default().fg(self.theme.border_active()));
-        
+
         // Split area for input and list
         let inner_area = block.inner(area);
         let chunks = ratatui::layout::Layout::default()
@@ -228,27 +237,28 @@ impl CommandPalette {
                 ratatui::layout::Constraint::Min(1),    // Command list
             ])
             .split(inner_area);
-        
+
         // Render the block first
         renderer.render_widget(block, area);
-        
+
         // Render input field
         let input_style = Style::default()
             .fg(self.theme.text())
             .bg(self.theme.background_element());
-        
+
         let input_line = Line::from(vec![
             Span::raw("> "),
             Span::styled(&self.input, input_style),
         ]);
-        
+
         let input_paragraph = Paragraph::new(vec![input_line])
             .style(Style::default().bg(self.theme.background_element()));
-        
+
         renderer.render_widget(input_paragraph, chunks[0]);
-        
+
         // Render command list
-        let list_items: Vec<ListItem> = self.filtered_commands
+        let list_items: Vec<ListItem> = self
+            .filtered_commands
             .iter()
             .enumerate()
             .map(|(index, &command_index)| {
@@ -260,20 +270,23 @@ impl CommandPalette {
                 } else {
                     Style::default().fg(self.theme.text())
                 };
-                
+
                 let content = Line::from(vec![
                     Span::styled(&command.name, style),
                     Span::raw(" - "),
-                    Span::styled(&command.description, Style::default().fg(self.theme.text_muted())),
+                    Span::styled(
+                        &command.description,
+                        Style::default().fg(self.theme.text_muted()),
+                    ),
                 ]);
-                
+
                 ListItem::new(content)
             })
             .collect();
-        
-        let list = List::new(list_items)
-            .style(Style::default().bg(self.theme.background_element()));
-        
+
+        let list =
+            List::new(list_items).style(Style::default().bg(self.theme.background_element()));
+
         renderer.render_widget(list, chunks[1]);
     }
 }

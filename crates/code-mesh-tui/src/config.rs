@@ -67,28 +67,28 @@ pub struct KeybindConfig {
 impl Default for KeybindConfig {
     fn default() -> Self {
         let mut bindings = HashMap::new();
-        
+
         // Navigation
         bindings.insert("quit".to_string(), "q".to_string());
         bindings.insert("help".to_string(), "?".to_string());
         bindings.insert("command_palette".to_string(), "ctrl+p".to_string());
-        
+
         // Chat
         bindings.insert("send_message".to_string(), "enter".to_string());
         bindings.insert("new_line".to_string(), "shift+enter".to_string());
         bindings.insert("clear_input".to_string(), "ctrl+l".to_string());
-        
+
         // File viewer
         bindings.insert("open_file".to_string(), "o".to_string());
         bindings.insert("close_file".to_string(), "esc".to_string());
         bindings.insert("toggle_diff".to_string(), "d".to_string());
-        
+
         // Navigation
         bindings.insert("scroll_up".to_string(), "k".to_string());
         bindings.insert("scroll_down".to_string(), "j".to_string());
         bindings.insert("page_up".to_string(), "ctrl+u".to_string());
         bindings.insert("page_down".to_string(), "ctrl+d".to_string());
-        
+
         Self {
             leader: "ctrl+x".to_string(),
             bindings,
@@ -192,11 +192,11 @@ impl Config {
         let config_dir = dirs::config_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not find config directory"))?
             .join("code-mesh");
-        
+
         if !config_dir.exists() {
             std::fs::create_dir_all(&config_dir)?;
         }
-        
+
         Ok(config_dir)
     }
 

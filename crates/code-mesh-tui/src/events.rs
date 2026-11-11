@@ -44,21 +44,23 @@ impl EventHandler {
     /// Create a new event handler
     pub fn new() -> Self {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
-        
+
         // Spawn terminal event listener
         let tx = event_tx.clone();
         tokio::spawn(async move {
             let mut event_stream = crossterm::event::EventStream::new();
-            
+
             loop {
                 use futures_util::StreamExt;
-                
+
                 if let Some(Ok(event)) = event_stream.next().await {
                     let app_event = match event {
                         CrosstermEvent::Key(key) => {
                             // Handle quit shortcut early
                             if key.code == crossterm::event::KeyCode::Char('c')
-                                && key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                                && key
+                                    .modifiers
+                                    .contains(crossterm::event::KeyModifiers::CONTROL)
                             {
                                 AppEvent::Quit
                             } else {
@@ -71,25 +73,25 @@ impl EventHandler {
                         CrosstermEvent::FocusLost => AppEvent::Input(InputEvent::FocusLost),
                         CrosstermEvent::Paste(data) => AppEvent::Input(InputEvent::Paste(data)),
                     };
-                    
+
                     if tx.send(app_event).is_err() {
                         break;
                     }
                 }
             }
         });
-        
+
         Self {
             event_rx,
             _event_tx: event_tx,
         }
     }
-    
+
     /// Receive the next event
     pub async fn next(&mut self) -> Option<AppEvent> {
         self.event_rx.recv().await
     }
-    
+
     /// Try to receive an event without blocking
     pub fn try_next(&mut self) -> Option<AppEvent> {
         self.event_rx.try_recv().ok()
@@ -98,7 +100,7 @@ impl EventHandler {
 
 impl Stream for EventHandler {
     type Item = AppEvent;
-    
+
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.event_rx.poll_recv(cx)
     }
@@ -121,21 +123,21 @@ impl KeybindHandler {
             leader_sequence: false,
         }
     }
-    
+
     /// Set the leader key
     pub fn set_leader_key(&mut self, key: String) {
         self.leader_key = Some(key);
     }
-    
+
     /// Add a key binding
     pub fn bind(&mut self, key: String, action: String) {
         self.bindings.insert(key, action);
     }
-    
+
     /// Handle a key event and return the bound action if any
     pub fn handle_key(&mut self, key: &KeyEvent) -> Option<String> {
         let key_string = self.key_to_string(key);
-        
+
         // Check if this is the leader key
         if let Some(leader) = &self.leader_key {
             if key_string == *leader && !self.leader_sequence {
@@ -143,24 +145,24 @@ impl KeybindHandler {
                 return None;
             }
         }
-        
+
         // If we're in a leader sequence, check for leader bindings
         if self.leader_sequence {
             self.leader_sequence = false;
             let leader_binding = format!("leader+{}", key_string);
             return self.bindings.get(&leader_binding).cloned();
         }
-        
+
         // Check for direct bindings
         self.bindings.get(&key_string).cloned()
     }
-    
+
     /// Convert a key event to a string representation
     fn key_to_string(&self, key: &KeyEvent) -> String {
         use crossterm::event::{KeyCode, KeyModifiers};
-        
+
         let mut parts = Vec::new();
-        
+
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             parts.push("ctrl");
         }
@@ -170,7 +172,7 @@ impl KeybindHandler {
         if key.modifiers.contains(KeyModifiers::SHIFT) {
             parts.push("shift");
         }
-        
+
         let key_part = match key.code {
             KeyCode::Char(c) => c.to_string(),
             KeyCode::Enter => "enter".to_string(),
@@ -190,7 +192,7 @@ impl KeybindHandler {
             KeyCode::F(n) => format!("f{}", n),
             _ => "unknown".to_string(),
         };
-        
+
         parts.push(&key_part);
         parts.join("+")
     }
@@ -223,11 +225,11 @@ impl MouseHandler {
             drag_state: None,
         }
     }
-    
+
     /// Handle a mouse event
     pub fn handle_mouse(&mut self, event: &MouseEvent) -> MouseAction {
         use crossterm::event::{MouseButton, MouseEventKind};
-        
+
         match event.kind {
             MouseEventKind::Down(button) => {
                 self.last_position = (event.column, event.row);
@@ -290,7 +292,7 @@ pub enum MouseAction {
     RightClick(u16, u16),
     MiddleClick(u16, u16),
     Move(u16, u16),
-    Drag((u16, u16), (u16, u16)), // start, current
+    Drag((u16, u16), (u16, u16)),    // start, current
     DragEnd((u16, u16), (u16, u16)), // start, end
     ScrollUp(u16, u16),
     ScrollDown(u16, u16),
@@ -310,12 +312,12 @@ impl EventDispatcher {
             handlers: Vec::new(),
         }
     }
-    
+
     /// Add an event handler
     pub fn add_handler(&mut self, handler: Box<dyn EventConsumer>) {
         self.handlers.push(handler);
     }
-    
+
     /// Dispatch an event to all handlers
     pub fn dispatch(&mut self, event: &AppEvent) -> bool {
         for handler in &mut self.handlers {
@@ -347,40 +349,40 @@ mod tests {
     #[test]
     fn test_key_to_string() {
         let handler = KeybindHandler::new();
-        
+
         let key = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
         assert_eq!(handler.key_to_string(&key), "a");
-        
+
         let key = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
         assert_eq!(handler.key_to_string(&key), "ctrl+a");
-        
+
         let key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         assert_eq!(handler.key_to_string(&key), "enter");
     }
-    
+
     #[test]
     fn test_keybind_handler() {
         let mut handler = KeybindHandler::new();
         handler.bind("q".to_string(), "quit".to_string());
         handler.bind("ctrl+c".to_string(), "interrupt".to_string());
-        
+
         let key = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE);
         assert_eq!(handler.handle_key(&key), Some("quit".to_string()));
-        
+
         let key = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
         assert_eq!(handler.handle_key(&key), Some("interrupt".to_string()));
     }
-    
+
     #[test]
     fn test_leader_sequence() {
         let mut handler = KeybindHandler::new();
         handler.set_leader_key("ctrl+x".to_string());
         handler.bind("leader+s".to_string(), "save".to_string());
-        
+
         // First press the leader key
         let leader_key = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL);
         assert_eq!(handler.handle_key(&leader_key), None);
-        
+
         // Then press the bound key
         let bound_key = KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE);
         assert_eq!(handler.handle_key(&bound_key), Some("save".to_string()));

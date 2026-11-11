@@ -8,13 +8,13 @@ use serde::{Deserialize, Serialize};
 pub trait Agent: Send + Sync {
     /// Get agent ID
     fn id(&self) -> &str;
-    
+
     /// Get agent name
     fn name(&self) -> &str;
-    
+
     /// Get agent capabilities
     fn capabilities(&self) -> &[String];
-    
+
     /// Execute a task
     async fn execute(&self, task: Task) -> crate::Result<TaskResult>;
 }

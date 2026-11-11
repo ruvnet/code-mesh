@@ -1,7 +1,7 @@
 //! Serve command implementation - API server functionality
 
-use crate::cmd::{CliError, UI, Config};
 use crate::cmd::Result as CliResult;
+use crate::cmd::{CliError, Config, UI};
 use axum::{
     http::StatusCode,
     response::Json,
@@ -9,27 +9,27 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
+use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use tokio::net::TcpListener;
 
 /// Execute the serve command
 pub async fn execute(host: &str, port: u16) -> CliResult<()> {
     let mut ui = UI::new();
-    
+
     ui.print_logo()?;
     ui.info("Starting Code Mesh API server")?;
-    
+
     // Validate inputs
     crate::cmd::utils::Validator::validate_port(port)?;
-    
+
     // Load configuration
     let _config = Config::load()?;
-    
+
     // Check authentication
     let auth_manager = code_mesh_core::auth::AuthManager::new().await?;
     let credentials = auth_manager.list_credentials().await?;
-    
+
     if credentials.is_empty() {
         ui.warning("No authentication providers configured")?;
         ui.info("Some API endpoints may not work without authentication")?;
@@ -38,21 +38,22 @@ pub async fn execute(host: &str, port: u16) -> CliResult<()> {
     } else {
         ui.success(&format!("Found {} configured providers", credentials.len()))?;
     }
-    
+
     // Create the application router
     let app = create_router().await?;
-    
+
     // Create server address
     let addr = format!("{}:{}", host, port);
-    
+
     ui.info(&format!("Server listening on http://{}", addr))?;
     ui.info("Press Ctrl+C to stop the server")?;
     ui.println("")?;
-    
+
     // Start server
-    let listener = TcpListener::bind(&addr).await
+    let listener = TcpListener::bind(&addr)
+        .await
         .map_err(|e| CliError::Server(format!("Failed to bind to {}: {}", addr, e)))?;
-    
+
     // Handle graceful shutdown
     let shutdown = async {
         tokio::signal::ctrl_c()
@@ -60,13 +61,13 @@ pub async fn execute(host: &str, port: u16) -> CliResult<()> {
             .expect("Failed to install CTRL+C signal handler");
         eprintln!("Received shutdown signal, stopping server...");
     };
-    
+
     // Run server with graceful shutdown
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)
         .await
         .map_err(|e| CliError::Server(format!("Server error: {}", e)))?;
-    
+
     ui.success("Server stopped gracefully")?;
     Ok(())
 }
@@ -80,7 +81,7 @@ async fn create_router() -> CliResult<Router> {
         .route("/sessions", post(create_session))
         .route("/models", get(list_models))
         .route("/providers", get(list_providers));
-    
+
     let app = Router::new()
         .nest("/api/v1", api_router)
         .route("/", get(root))
@@ -89,7 +90,7 @@ async fn create_router() -> CliResult<Router> {
                 .layer(TraceLayer::new_for_http())
                 .layer(CorsLayer::permissive()),
         );
-    
+
     Ok(app)
 }
 
@@ -122,33 +123,35 @@ async fn chat_endpoint(
     if request.message.trim().is_empty() {
         return Err(StatusCode::BAD_REQUEST);
     }
-    
+
     // TODO: Implement actual chat logic using code-mesh-core
     let response = ChatResponse {
         id: crate::cmd::utils::Utils::generate_id(),
         message: format!("Echo: {}", request.message),
-        model: request.model.unwrap_or_else(|| "claude-3-sonnet-20240229".to_string()),
-        session_id: request.session_id.unwrap_or_else(|| crate::cmd::utils::Utils::generate_id()),
+        model: request
+            .model
+            .unwrap_or_else(|| "claude-3-sonnet-20240229".to_string()),
+        session_id: request
+            .session_id
+            .unwrap_or_else(|| crate::cmd::utils::Utils::generate_id()),
         created_at: chrono::Utc::now(),
         tokens_used: 100, // Placeholder
     };
-    
+
     Ok(Json(ApiResponse::success(response)))
 }
 
 /// List sessions endpoint - placeholder implementation
 async fn list_sessions() -> Result<Json<ApiResponse<Vec<SessionInfo>>>, StatusCode> {
     // TODO: Implement actual session listing using code-mesh-core
-    let sessions = vec![
-        SessionInfo {
-            id: "session-1".to_string(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            message_count: 5,
-            model: Some("claude-3-sonnet-20240229".to_string()),
-        },
-    ];
-    
+    let sessions = vec![SessionInfo {
+        id: "session-1".to_string(),
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        message_count: 5,
+        model: Some("claude-3-sonnet-20240229".to_string()),
+    }];
+
     Ok(Json(ApiResponse::success(sessions)))
 }
 
@@ -164,7 +167,7 @@ async fn create_session(
         message_count: 0,
         model: request.model,
     };
-    
+
     Ok(Json(ApiResponse::success(session)))
 }
 
@@ -189,7 +192,7 @@ async fn list_models() -> Result<Json<ApiResponse<Vec<ModelInfo>>>, StatusCode> 
             supports_streaming: true,
         },
     ];
-    
+
     Ok(Json(ApiResponse::success(models)))
 }
 
@@ -212,7 +215,7 @@ async fn list_providers() -> Result<Json<ApiResponse<Vec<ProviderInfo>>>, Status
             models: vec!["gpt-4".to_string(), "gpt-3.5-turbo".to_string()],
         },
     ];
-    
+
     Ok(Json(ApiResponse::success(providers)))
 }
 
@@ -235,7 +238,7 @@ impl<T> ApiResponse<T> {
             timestamp: chrono::Utc::now(),
         }
     }
-    
+
     fn error(message: String) -> Self {
         Self {
             success: false,
@@ -312,4 +315,3 @@ struct ProviderInfo {
     configured: bool,
     models: Vec<String>,
 }
-

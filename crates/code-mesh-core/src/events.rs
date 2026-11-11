@@ -21,12 +21,12 @@ use parking_lot::RwLock;
 pub trait Event: Send + Sync + Clone + std::fmt::Debug + 'static {
     /// Event type identifier
     fn event_type(&self) -> &'static str;
-    
+
     /// Event priority
     fn priority(&self) -> EventPriority {
         EventPriority::Normal
     }
-    
+
     /// Whether this event should be persisted
     fn persistent(&self) -> bool {
         false
@@ -47,12 +47,12 @@ pub enum EventPriority {
 pub trait EventHandler<E: Event>: Send + Sync {
     /// Handle an event
     async fn handle(&self, event: &E) -> Result<()>;
-    
+
     /// Handler priority (higher values are called first)
     fn priority(&self) -> i32 {
         0
     }
-    
+
     /// Whether this handler should receive events before others
     fn early(&self) -> bool {
         false
@@ -99,16 +99,16 @@ impl<E: Event, H: EventHandler<E>> EventHandlerDyn for EventHandlerWrapper<E, H>
 pub struct EventBus {
     #[cfg(feature = "native")]
     handlers: RwLock<HashMap<TypeId, Vec<BoxedHandler>>>,
-    
+
     #[cfg(feature = "native")]
     broadcast_senders: RwLock<HashMap<TypeId, broadcast::Sender<Arc<dyn Any + Send + Sync>>>>,
-    
+
     #[cfg(feature = "wasm")]
     handlers: RwLock<HashMap<TypeId, Vec<BoxedHandler>>>,
-    
+
     /// Maximum number of queued events per type
     max_queue_size: usize,
-    
+
     /// Whether to enable event tracing
     tracing_enabled: bool,
 }
@@ -137,7 +137,10 @@ impl EventBus {
     }
 
     /// Subscribe to events of a specific type
-    pub async fn subscribe<E: Event, H: EventHandler<E> + 'static>(&self, handler: H) -> Result<()> {
+    pub async fn subscribe<E: Event, H: EventHandler<E> + 'static>(
+        &self,
+        handler: H,
+    ) -> Result<()> {
         let type_id = TypeId::of::<E>();
         let boxed_handler = Box::new(EventHandlerWrapper {
             handler,
@@ -149,14 +152,12 @@ impl EventBus {
             let mut handlers = self.handlers.write().await;
             let handlers_list = handlers.entry(type_id).or_insert_with(Vec::new);
             handlers_list.push(boxed_handler);
-            
+
             // Sort by priority and early flag
-            handlers_list.sort_by(|a, b| {
-                match (a.early(), b.early()) {
-                    (true, false) => std::cmp::Ordering::Less,
-                    (false, true) => std::cmp::Ordering::Greater,
-                    _ => b.priority().cmp(&a.priority()),
-                }
+            handlers_list.sort_by(|a, b| match (a.early(), b.early()) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => b.priority().cmp(&a.priority()),
             });
         }
 
@@ -165,14 +166,12 @@ impl EventBus {
             let mut handlers = self.handlers.write();
             let handlers_list = handlers.entry(type_id).or_insert_with(Vec::new);
             handlers_list.push(boxed_handler);
-            
+
             // Sort by priority and early flag
-            handlers_list.sort_by(|a, b| {
-                match (a.early(), b.early()) {
-                    (true, false) => std::cmp::Ordering::Less,
-                    (false, true) => std::cmp::Ordering::Greater,
-                    _ => b.priority().cmp(&a.priority()),
-                }
+            handlers_list.sort_by(|a, b| match (a.early(), b.early()) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => b.priority().cmp(&a.priority()),
             });
         }
 
@@ -186,7 +185,7 @@ impl EventBus {
     /// Publish an event to all subscribers
     pub async fn publish<E: Event>(&self, event: E) -> Result<()> {
         let type_id = TypeId::of::<E>();
-        
+
         if self.tracing_enabled {
             tracing::debug!(
                 "Publishing event: {} with priority: {:?}",
@@ -238,13 +237,13 @@ impl EventBus {
     #[cfg(feature = "native")]
     pub async fn create_stream<E: Event>(&self) -> broadcast::Receiver<Arc<dyn Any + Send + Sync>> {
         let type_id = TypeId::of::<E>();
-        
+
         let mut senders = self.broadcast_senders.write().await;
         let sender = senders.entry(type_id).or_insert_with(|| {
             let (sender, _) = broadcast::channel(self.max_queue_size);
             sender
         });
-        
+
         sender.subscribe()
     }
 
@@ -265,10 +264,12 @@ impl EventBus {
     /// Get the number of handlers for a specific event type
     pub async fn handler_count<E: Event>(&self) -> usize {
         let type_id = TypeId::of::<E>();
-        
+
         #[cfg(feature = "native")]
         {
-            self.handlers.read().await
+            self.handlers
+                .read()
+                .await
                 .get(&type_id)
                 .map(|h| h.len())
                 .unwrap_or(0)
@@ -276,7 +277,8 @@ impl EventBus {
 
         #[cfg(feature = "wasm")]
         {
-            self.handlers.read()
+            self.handlers
+                .read()
                 .get(&type_id)
                 .map(|h| h.len())
                 .unwrap_or(0)
@@ -606,7 +608,7 @@ mod tests {
     async fn test_event_bus() {
         let bus = EventBus::new();
         let counter = Arc::new(AtomicU32::new(0));
-        
+
         let handler = TestHandler {
             counter: counter.clone(),
         };

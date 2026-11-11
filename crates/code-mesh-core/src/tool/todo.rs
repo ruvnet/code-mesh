@@ -108,15 +108,14 @@ impl Task {
     pub fn update_status(&mut self, status: TaskStatus) {
         self.status = status;
         self.updated_at = Utc::now();
-        
+
         if self.status == TaskStatus::Completed {
             self.completed_at = Some(Utc::now());
             self.progress = 1.0;
-            
+
             // Calculate actual duration if we have a created_at time
-            self.metadata.actual_duration = Some(
-                self.updated_at.signed_duration_since(self.created_at)
-            );
+            self.metadata.actual_duration =
+                Some(self.updated_at.signed_duration_since(self.created_at));
         }
     }
 
@@ -132,9 +131,9 @@ impl Task {
 
     pub fn is_blocked_by(&self, other_task: &Task) -> bool {
         self.dependencies.iter().any(|dep| {
-            dep.task_id == other_task.id && 
-            matches!(dep.dependency_type, DependencyType::BlocksStart) &&
-            other_task.status != TaskStatus::Completed
+            dep.task_id == other_task.id
+                && matches!(dep.dependency_type, DependencyType::BlocksStart)
+                && other_task.status != TaskStatus::Completed
         })
     }
 
@@ -198,21 +197,29 @@ impl TaskList {
     }
 
     pub fn get_tasks_by_status(&self, status: &TaskStatus) -> Vec<&Task> {
-        self.tasks.values().filter(|t| &t.status == status).collect()
+        self.tasks
+            .values()
+            .filter(|t| &t.status == status)
+            .collect()
     }
 
     pub fn get_tasks_by_priority(&self, priority: &TaskPriority) -> Vec<&Task> {
-        self.tasks.values().filter(|t| &t.priority == priority).collect()
+        self.tasks
+            .values()
+            .filter(|t| &t.priority == priority)
+            .collect()
     }
 
     pub fn get_available_tasks(&self) -> Vec<&Task> {
-        self.tasks.values()
+        self.tasks
+            .values()
             .filter(|t| t.status == TaskStatus::Pending && t.can_start(&self.tasks))
             .collect()
     }
 
     pub fn get_blocked_tasks(&self) -> Vec<&Task> {
-        self.tasks.values()
+        self.tasks
+            .values()
             .filter(|t| t.status == TaskStatus::Pending && !t.can_start(&self.tasks))
             .collect()
     }
@@ -232,7 +239,11 @@ impl TaskList {
             pending,
             blocked,
             cancelled,
-            completion_rate: if total > 0 { completed as f32 / total as f32 } else { 0.0 },
+            completion_rate: if total > 0 {
+                completed as f32 / total as f32
+            } else {
+                0.0
+            },
         }
     }
 }
@@ -264,7 +275,8 @@ impl TaskStorage {
 
     pub async fn get_or_create_list(&self, session_id: &str) -> TaskList {
         let mut lists = self.task_lists.write().await;
-        lists.entry(session_id.to_string())
+        lists
+            .entry(session_id.to_string())
             .or_insert_with(|| TaskList::new(session_id.to_string()))
             .clone()
     }
@@ -298,24 +310,34 @@ impl TodoTool {
 #[serde(rename_all = "snake_case")]
 enum TodoAction {
     List,
-    Add { content: String, priority: Option<TaskPriority> },
-    Update { 
-        id: String, 
-        status: Option<TaskStatus>, 
+    Add {
+        content: String,
+        priority: Option<TaskPriority>,
+    },
+    Update {
+        id: String,
+        status: Option<TaskStatus>,
         priority: Option<TaskPriority>,
         content: Option<String>,
         progress: Option<f32>,
     },
-    Remove { id: String },
-    AddDependency { 
-        task_id: String, 
-        depends_on: String, 
+    Remove {
+        id: String,
+    },
+    AddDependency {
+        task_id: String,
+        depends_on: String,
         dependency_type: DependencyType,
         description: Option<String>,
     },
-    AddNote { id: String, note: String },
+    AddNote {
+        id: String,
+        note: String,
+    },
     Stats,
-    Export { format: Option<String> },
+    Export {
+        format: Option<String>,
+    },
 }
 
 #[async_trait]
@@ -323,11 +345,11 @@ impl Tool for TodoTool {
     fn id(&self) -> &str {
         "todo"
     }
-    
+
     fn description(&self) -> &str {
         "Comprehensive task management tool with dependency tracking, progress reporting, and analytics"
     }
-    
+
     fn parameters_schema(&self) -> Value {
         json!({
             "type": "object",
@@ -387,7 +409,7 @@ impl Tool for TodoTool {
             "required": ["action"]
         })
     }
-    
+
     async fn execute(&self, args: Value, ctx: ToolContext) -> Result<ToolResult, ToolError> {
         let action: TodoAction = serde_json::from_value(args)
             .map_err(|e| ToolError::InvalidParameters(e.to_string()))?;
@@ -398,7 +420,7 @@ impl Tool for TodoTool {
             TodoAction::List => {
                 let output = format_task_list(&task_list);
                 let stats = task_list.get_completion_stats();
-                
+
                 Ok(ToolResult {
                     title: format!("Task List ({} tasks)", task_list.tasks.len()),
                     output,
@@ -408,13 +430,13 @@ impl Tool for TodoTool {
                         "task_count": task_list.tasks.len()
                     }),
                 })
-            },
+            }
 
             TodoAction::Add { content, priority } => {
                 let task_id = Uuid::new_v4().to_string();
                 let priority_value = priority.unwrap_or(TaskPriority::Medium);
                 let task = Task::new(task_id.clone(), content.clone(), priority_value.clone());
-                
+
                 task_list.add_task(task);
                 self.storage.save_list(task_list.clone()).await;
 
@@ -427,9 +449,15 @@ impl Tool for TodoTool {
                         "priority": priority_value
                     }),
                 })
-            },
+            }
 
-            TodoAction::Update { id, status, priority, content, progress } => {
+            TodoAction::Update {
+                id,
+                status,
+                priority,
+                content,
+                progress,
+            } => {
                 if let Some(task) = task_list.get_task_mut(&id) {
                     if let Some(new_status) = status {
                         task.update_status(new_status);
@@ -446,7 +474,7 @@ impl Tool for TodoTool {
                         task.progress = new_progress.clamp(0.0, 1.0);
                         task.updated_at = Utc::now();
                     }
-                    
+
                     let task_content = task.content.clone();
                     let task_status = task.status.clone();
                     let task_priority = task.priority.clone();
@@ -465,9 +493,12 @@ impl Tool for TodoTool {
                         }),
                     })
                 } else {
-                    Err(ToolError::InvalidParameters(format!("Task not found: {}", id)))
+                    Err(ToolError::InvalidParameters(format!(
+                        "Task not found: {}",
+                        id
+                    )))
                 }
-            },
+            }
 
             TodoAction::Remove { id } => {
                 if let Some(task) = task_list.remove_task(&id) {
@@ -482,22 +513,38 @@ impl Tool for TodoTool {
                         }),
                     })
                 } else {
-                    Err(ToolError::InvalidParameters(format!("Task not found: {}", id)))
+                    Err(ToolError::InvalidParameters(format!(
+                        "Task not found: {}",
+                        id
+                    )))
                 }
-            },
+            }
 
-            TodoAction::AddDependency { task_id, depends_on, dependency_type, description } => {
+            TodoAction::AddDependency {
+                task_id,
+                depends_on,
+                dependency_type,
+                description,
+            } => {
                 // Verify both tasks exist
                 if !task_list.tasks.contains_key(&task_id) {
-                    return Err(ToolError::InvalidParameters(format!("Task not found: {}", task_id)));
+                    return Err(ToolError::InvalidParameters(format!(
+                        "Task not found: {}",
+                        task_id
+                    )));
                 }
                 if !task_list.tasks.contains_key(&depends_on) {
-                    return Err(ToolError::InvalidParameters(format!("Dependency task not found: {}", depends_on)));
+                    return Err(ToolError::InvalidParameters(format!(
+                        "Dependency task not found: {}",
+                        depends_on
+                    )));
                 }
 
                 // Check for circular dependencies
                 if would_create_cycle(&task_list, &task_id, &depends_on) {
-                    return Err(ToolError::InvalidParameters("Adding this dependency would create a circular dependency".to_string()));
+                    return Err(ToolError::InvalidParameters(
+                        "Adding this dependency would create a circular dependency".to_string(),
+                    ));
                 }
 
                 if let Some(task) = task_list.get_task_mut(&task_id) {
@@ -519,9 +566,12 @@ impl Tool for TodoTool {
                         }),
                     })
                 } else {
-                    Err(ToolError::InvalidParameters(format!("Task not found: {}", task_id)))
+                    Err(ToolError::InvalidParameters(format!(
+                        "Task not found: {}",
+                        task_id
+                    )))
                 }
-            },
+            }
 
             TodoAction::AddNote { id, note } => {
                 if let Some(task) = task_list.get_task_mut(&id) {
@@ -538,9 +588,12 @@ impl Tool for TodoTool {
                         }),
                     })
                 } else {
-                    Err(ToolError::InvalidParameters(format!("Task not found: {}", id)))
+                    Err(ToolError::InvalidParameters(format!(
+                        "Task not found: {}",
+                        id
+                    )))
                 }
-            },
+            }
 
             TodoAction::Stats => {
                 let stats = task_list.get_completion_stats();
@@ -578,16 +631,21 @@ impl Tool for TodoTool {
                         "blocked_tasks": blocked_tasks.len()
                     }),
                 })
-            },
+            }
 
             TodoAction::Export { format } => {
                 let format = format.as_deref().unwrap_or("json");
                 let output = match format {
-                    "json" => serde_json::to_string_pretty(&task_list.tasks)
-                        .map_err(|e| ToolError::ExecutionFailed(format!("JSON serialization failed: {}", e)))?,
+                    "json" => serde_json::to_string_pretty(&task_list.tasks).map_err(|e| {
+                        ToolError::ExecutionFailed(format!("JSON serialization failed: {}", e))
+                    })?,
                     "markdown" => export_to_markdown(&task_list),
                     "csv" => export_to_csv(&task_list)?,
-                    _ => return Err(ToolError::InvalidParameters("Unsupported export format".to_string())),
+                    _ => {
+                        return Err(ToolError::InvalidParameters(
+                            "Unsupported export format".to_string(),
+                        ))
+                    }
                 };
 
                 Ok(ToolResult {
@@ -599,7 +657,7 @@ impl Tool for TodoTool {
                         "exported_at": Utc::now()
                     }),
                 })
-            },
+            }
         }
     }
 }
@@ -612,7 +670,7 @@ fn format_task_list(task_list: &TaskList) -> String {
 
     let mut output = String::new();
     let stats = task_list.get_completion_stats();
-    
+
     output.push_str(&format!(
         "Task List ({}% complete)\n\n",
         (stats.completion_rate * 100.0) as u32
@@ -631,14 +689,16 @@ fn format_task_list(task_list: &TaskList) -> String {
         let tasks = task_list.get_tasks_by_status(status);
         if !tasks.is_empty() {
             output.push_str(&format!("## {:?} ({})\n", status, tasks.len()));
-            
+
             for task in tasks {
                 let progress_bar = create_progress_bar(task.progress);
                 let dependencies = if task.dependencies.is_empty() {
                     String::new()
                 } else {
-                    format!(" (depends on: {})", 
-                        task.dependencies.iter()
+                    format!(
+                        " (depends on: {})",
+                        task.dependencies
+                            .iter()
                             .map(|d| &d.task_id[..8])
                             .collect::<Vec<_>>()
                             .join(", ")
@@ -647,7 +707,11 @@ fn format_task_list(task_list: &TaskList) -> String {
 
                 output.push_str(&format!(
                     "- [{}] {} {} {}{}\n",
-                    if task.status == TaskStatus::Completed { "x" } else { " " },
+                    if task.status == TaskStatus::Completed {
+                        "x"
+                    } else {
+                        " "
+                    },
                     task.content,
                     format!("({:?})", task.priority),
                     progress_bar,
@@ -672,65 +736,80 @@ fn create_progress_bar(progress: f32) -> String {
     let width = 10;
     let filled = (progress * width as f32) as usize;
     let empty = width - filled;
-    format!("[{}{}] {:.0}%", "█".repeat(filled), "░".repeat(empty), progress * 100.0)
+    format!(
+        "[{}{}] {:.0}%",
+        "█".repeat(filled),
+        "░".repeat(empty),
+        progress * 100.0
+    )
 }
 
 /// Export task list to markdown format
 fn export_to_markdown(task_list: &TaskList) -> String {
     let mut output = format!("# Task List - {}\n\n", task_list.session_id);
-    
+
     for task in task_list.tasks.values() {
-        output.push_str(&format!(
-            "## {} ({})\n\n",
-            task.content,
-            task.id
-        ));
-        
+        output.push_str(&format!("## {} ({})\n\n", task.content, task.id));
+
         output.push_str(&format!("- **Status**: {:?}\n", task.status));
         output.push_str(&format!("- **Priority**: {:?}\n", task.priority));
         output.push_str(&format!("- **Progress**: {:.1}%\n", task.progress * 100.0));
-        output.push_str(&format!("- **Created**: {}\n", task.created_at.format("%Y-%m-%d %H:%M:%S")));
-        
+        output.push_str(&format!(
+            "- **Created**: {}\n",
+            task.created_at.format("%Y-%m-%d %H:%M:%S")
+        ));
+
         if let Some(completed_at) = task.completed_at {
-            output.push_str(&format!("- **Completed**: {}\n", completed_at.format("%Y-%m-%d %H:%M:%S")));
+            output.push_str(&format!(
+                "- **Completed**: {}\n",
+                completed_at.format("%Y-%m-%d %H:%M:%S")
+            ));
         }
-        
+
         if !task.dependencies.is_empty() {
             output.push_str("- **Dependencies**:\n");
             for dep in &task.dependencies {
-                output.push_str(&format!("  - {} ({:?})\n", dep.task_id, dep.dependency_type));
+                output.push_str(&format!(
+                    "  - {} ({:?})\n",
+                    dep.task_id, dep.dependency_type
+                ));
             }
         }
-        
+
         if !task.notes.is_empty() {
             output.push_str("- **Notes**:\n");
             for note in &task.notes {
                 output.push_str(&format!("  - {}\n", note));
             }
         }
-        
+
         output.push('\n');
     }
-    
+
     output
 }
 
 /// Export task list to CSV format
 fn export_to_csv(task_list: &TaskList) -> Result<String, ToolError> {
-    let mut output = "ID,Content,Status,Priority,Progress,Created,Updated,Completed,Dependencies,Notes\n".to_string();
-    
+    let mut output =
+        "ID,Content,Status,Priority,Progress,Created,Updated,Completed,Dependencies,Notes\n"
+            .to_string();
+
     for task in task_list.tasks.values() {
-        let dependencies = task.dependencies.iter()
+        let dependencies = task
+            .dependencies
+            .iter()
             .map(|d| format!("{}:{:?}", d.task_id, d.dependency_type))
             .collect::<Vec<_>>()
             .join(";");
-        
+
         let notes = task.notes.join(";");
-        
-        let completed = task.completed_at
+
+        let completed = task
+            .completed_at
             .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
             .unwrap_or_default();
-        
+
         output.push_str(&format!(
             "{},{},{:?},{:?},{:.2},{},{},{},{},{}\n",
             task.id,
@@ -745,7 +824,7 @@ fn export_to_csv(task_list: &TaskList) -> Result<String, ToolError> {
             notes
         ));
     }
-    
+
     Ok(output)
 }
 
@@ -753,26 +832,29 @@ fn export_to_csv(task_list: &TaskList) -> Result<String, ToolError> {
 fn would_create_cycle(task_list: &TaskList, from_task: &str, to_task: &str) -> bool {
     let mut visited = HashSet::new();
     let mut stack = vec![to_task];
-    
+
     while let Some(current) = stack.pop() {
         if current == from_task {
             return true; // Cycle detected
         }
-        
+
         if visited.contains(current) {
             continue;
         }
         visited.insert(current);
-        
+
         if let Some(task) = task_list.tasks.get(current) {
             for dep in &task.dependencies {
-                if matches!(dep.dependency_type, DependencyType::BlocksStart | DependencyType::BlocksCompletion) {
+                if matches!(
+                    dep.dependency_type,
+                    DependencyType::BlocksStart | DependencyType::BlocksCompletion
+                ) {
                     stack.push(&dep.task_id);
                 }
             }
         }
     }
-    
+
     false
 }
 
@@ -788,7 +870,11 @@ mod tests {
 
     #[test]
     fn test_task_creation() {
-        let task = Task::new("test-1".to_string(), "Test task".to_string(), TaskPriority::High);
+        let task = Task::new(
+            "test-1".to_string(),
+            "Test task".to_string(),
+            TaskPriority::High,
+        );
         assert_eq!(task.id, "test-1");
         assert_eq!(task.content, "Test task");
         assert_eq!(task.priority, TaskPriority::High);
@@ -798,9 +884,13 @@ mod tests {
 
     #[test]
     fn test_task_status_update() {
-        let mut task = Task::new("test-1".to_string(), "Test task".to_string(), TaskPriority::Medium);
+        let mut task = Task::new(
+            "test-1".to_string(),
+            "Test task".to_string(),
+            TaskPriority::Medium,
+        );
         task.update_status(TaskStatus::Completed);
-        
+
         assert_eq!(task.status, TaskStatus::Completed);
         assert_eq!(task.progress, 1.0);
         assert!(task.completed_at.is_some());
@@ -809,15 +899,23 @@ mod tests {
 
     #[test]
     fn test_task_dependencies() {
-        let mut task1 = Task::new("task-1".to_string(), "First task".to_string(), TaskPriority::High);
-        let task2 = Task::new("task-2".to_string(), "Second task".to_string(), TaskPriority::Medium);
-        
+        let mut task1 = Task::new(
+            "task-1".to_string(),
+            "First task".to_string(),
+            TaskPriority::High,
+        );
+        let task2 = Task::new(
+            "task-2".to_string(),
+            "Second task".to_string(),
+            TaskPriority::Medium,
+        );
+
         let dependency = TaskDependency {
             task_id: task2.id.clone(),
             dependency_type: DependencyType::BlocksStart,
             description: Some("Must complete first".to_string()),
         };
-        
+
         task1.add_dependency(dependency);
         assert_eq!(task1.dependencies.len(), 1);
         assert!(task1.is_blocked_by(&task2));
@@ -826,20 +924,28 @@ mod tests {
     #[test]
     fn test_cycle_detection() {
         let mut task_list = TaskList::new("test-session".to_string());
-        
-        let task1 = Task::new("task-1".to_string(), "Task 1".to_string(), TaskPriority::Medium);
-        let mut task2 = Task::new("task-2".to_string(), "Task 2".to_string(), TaskPriority::Medium);
-        
+
+        let task1 = Task::new(
+            "task-1".to_string(),
+            "Task 1".to_string(),
+            TaskPriority::Medium,
+        );
+        let mut task2 = Task::new(
+            "task-2".to_string(),
+            "Task 2".to_string(),
+            TaskPriority::Medium,
+        );
+
         // task2 depends on task1
         task2.add_dependency(TaskDependency {
             task_id: "task-1".to_string(),
             dependency_type: DependencyType::BlocksStart,
             description: None,
         });
-        
+
         task_list.add_task(task1);
         task_list.add_task(task2);
-        
+
         // Check if task1 depending on task2 would create a cycle
         assert!(would_create_cycle(&task_list, "task-1", "task-2"));
         assert!(!would_create_cycle(&task_list, "task-2", "task-1"));

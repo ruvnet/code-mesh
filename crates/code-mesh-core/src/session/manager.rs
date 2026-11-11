@@ -1,6 +1,6 @@
 //! Session management implementation
 
-use super::{Session, Message, MessageRole};
+use super::{Message, MessageRole, Session};
 use crate::storage::Storage;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -18,25 +18,26 @@ impl SessionManager {
             active_sessions: HashMap::new(),
         }
     }
-    
+
     /// Create a new session
     pub async fn create_session(&mut self) -> crate::Result<Session> {
         let session = Session::new();
-        self.active_sessions.insert(session.id.clone(), session.clone());
-        
+        self.active_sessions
+            .insert(session.id.clone(), session.clone());
+
         // Persist to storage
         self.save_session(&session).await?;
-        
+
         Ok(session)
     }
-    
+
     /// Get a session by ID
     pub async fn get_session(&mut self, id: &str) -> crate::Result<Option<Session>> {
         // Check active sessions first
         if let Some(session) = self.active_sessions.get(id) {
             return Ok(Some(session.clone()));
         }
-        
+
         // Try loading from storage
         if let Some(data) = self.storage.get(&format!("session:{}", id)).await? {
             let session: Session = serde_json::from_slice(&data)?;
@@ -46,12 +47,12 @@ impl SessionManager {
             Ok(None)
         }
     }
-    
+
     /// List all sessions
     pub async fn list_sessions(&self) -> crate::Result<Vec<SessionInfo>> {
         let keys = self.storage.list(Some("session:")).await?;
         let mut sessions = Vec::new();
-        
+
         for key in keys {
             if let Some(data) = self.storage.get(&key).await? {
                 if let Ok(session) = serde_json::from_slice::<Session>(&data) {
@@ -65,11 +66,11 @@ impl SessionManager {
                 }
             }
         }
-        
+
         sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
         Ok(sessions)
     }
-    
+
     /// Add a message to a session
     pub async fn add_message(
         &mut self,
@@ -78,21 +79,21 @@ impl SessionManager {
         content: String,
     ) -> crate::Result<Message> {
         let message = Message::new(role, content);
-        
+
         // Update session
         {
             let session = self.get_session_mut(session_id)?;
             session.add_message(message.clone());
         }
-        
+
         // Persist changes
         if let Some(session) = self.active_sessions.get(session_id) {
             self.save_session(session).await?;
         }
-        
+
         Ok(message)
     }
-    
+
     /// Continue the last session
     pub async fn continue_last_session(&mut self) -> crate::Result<Option<Session>> {
         let sessions = self.list_sessions().await?;
@@ -102,7 +103,7 @@ impl SessionManager {
             Ok(None)
         }
     }
-    
+
     /// Save session to storage
     async fn save_session(&self, session: &Session) -> crate::Result<()> {
         let key = format!("session:{}", session.id);
@@ -110,10 +111,11 @@ impl SessionManager {
         self.storage.set(&key, &data).await?;
         Ok(())
     }
-    
+
     /// Get mutable session reference
     fn get_session_mut(&mut self, id: &str) -> crate::Result<&mut Session> {
-        self.active_sessions.get_mut(id)
+        self.active_sessions
+            .get_mut(id)
             .ok_or_else(|| crate::Error::Session(format!("Session {} not found", id)))
     }
 }

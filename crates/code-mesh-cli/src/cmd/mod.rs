@@ -13,6 +13,6 @@ pub mod ui;
 pub mod utils;
 
 // Re-export commonly used types
-pub use error::{CliError, Result};
-pub use ui::{UI, Theme, ProgressTracker};
 pub use config::{Config, Profile};
+pub use error::{CliError, Result};
+pub use ui::{ProgressTracker, Theme, UI};

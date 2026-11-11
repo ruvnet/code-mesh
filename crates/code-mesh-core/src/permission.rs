@@ -14,19 +14,19 @@ use std::path::{Path, PathBuf};
 pub enum PermissionLevel {
     /// No access allowed
     None = 0,
-    
+
     /// Read-only access
     Read = 1,
-    
+
     /// Restricted access with limitations
     Restricted = 2,
-    
+
     /// Standard access for normal operations
     Standard = 3,
-    
+
     /// Elevated access for advanced operations
     Elevated = 4,
-    
+
     /// Full administrative access
     Admin = 5,
 }
@@ -48,7 +48,10 @@ impl std::str::FromStr for PermissionLevel {
             "standard" => Ok(PermissionLevel::Standard),
             "elevated" => Ok(PermissionLevel::Elevated),
             "admin" => Ok(PermissionLevel::Admin),
-            _ => Err(Error::Other(anyhow::anyhow!("Invalid permission level: {}", s))),
+            _ => Err(Error::Other(anyhow::anyhow!(
+                "Invalid permission level: {}",
+                s
+            ))),
         }
     }
 }
@@ -71,13 +74,13 @@ impl std::fmt::Display for PermissionLevel {
 pub struct Permission {
     /// The resource being accessed
     pub resource: String,
-    
+
     /// The operation being performed
     pub operation: String,
-    
+
     /// Required permission level
     pub level: PermissionLevel,
-    
+
     /// Additional constraints
     pub constraints: Vec<PermissionConstraint>,
 }
@@ -93,19 +96,19 @@ pub enum PermissionConstraint {
         /// Denied paths or patterns
         denied: Vec<String>,
     },
-    
+
     /// Size-based constraints
     SizeConstraint {
         /// Maximum size in bytes
         max_size: u64,
     },
-    
+
     /// Time-based constraints
     TimeConstraint {
         /// Maximum execution time in seconds
         max_duration: u64,
     },
-    
+
     /// Network-based constraints
     NetworkConstraint {
         /// Whether network access is allowed
@@ -115,7 +118,7 @@ pub enum PermissionConstraint {
         /// Denied hosts/domains
         denied_hosts: Vec<String>,
     },
-    
+
     /// Resource-based constraints
     ResourceConstraint {
         /// Maximum memory usage in MB
@@ -123,7 +126,7 @@ pub enum PermissionConstraint {
         /// Maximum CPU usage percentage
         max_cpu_percent: Option<u32>,
     },
-    
+
     /// Custom constraints
     CustomConstraint {
         /// Constraint name
@@ -138,22 +141,22 @@ pub enum PermissionConstraint {
 pub struct PermissionContext {
     /// User or session identifier
     pub user_id: String,
-    
+
     /// Session identifier
     pub session_id: String,
-    
+
     /// Current working directory
     pub working_dir: PathBuf,
-    
+
     /// Requested resource
     pub resource: String,
-    
+
     /// Requested operation
     pub operation: String,
-    
+
     /// Additional context parameters
     pub params: HashMap<String, serde_json::Value>,
-    
+
     /// Current permission level
     pub current_level: PermissionLevel,
 }
@@ -199,13 +202,13 @@ impl PermissionContext {
 pub struct PermissionManager {
     /// Default permission level
     default_level: PermissionLevel,
-    
+
     /// Resource-specific permissions
     resource_permissions: HashMap<String, HashMap<String, Permission>>,
-    
+
     /// User-specific permission overrides
     user_permissions: HashMap<String, HashMap<String, PermissionLevel>>,
-    
+
     /// Global permission constraints
     global_constraints: Vec<PermissionConstraint>,
 }
@@ -222,12 +225,7 @@ impl PermissionManager {
     }
 
     /// Add a permission rule for a resource and operation
-    pub fn add_permission(
-        &mut self,
-        resource: String,
-        operation: String,
-        permission: Permission,
-    ) {
+    pub fn add_permission(&mut self, resource: String, operation: String, permission: Permission) {
         self.resource_permissions
             .entry(resource)
             .or_insert_with(HashMap::new)
@@ -256,10 +254,10 @@ impl PermissionManager {
     pub fn check_permission(&self, context: &PermissionContext) -> Result<bool> {
         // Get the required permission level
         let required_level = self.get_required_level(context);
-        
+
         // Get the user's permission level
         let user_level = self.get_user_level(context);
-        
+
         // Check if user has sufficient permission level
         if user_level < required_level {
             return Ok(false);
@@ -290,14 +288,14 @@ impl PermissionManager {
                 return permission.level;
             }
         }
-        
+
         // Check for wildcard operations
         if let Some(resource_perms) = self.resource_permissions.get(&context.resource) {
             if let Some(permission) = resource_perms.get("*") {
                 return permission.level;
             }
         }
-        
+
         // Check for wildcard resources
         if let Some(resource_perms) = self.resource_permissions.get("*") {
             if let Some(permission) = resource_perms.get(&context.operation) {
@@ -436,9 +434,10 @@ impl PermissionManager {
     /// Check if a path matches a pattern (supports glob patterns)
     fn path_matches_pattern(&self, path: &Path, pattern: &str) -> Result<bool> {
         // Simple glob pattern matching
-        let pattern = glob::Pattern::new(pattern)
-            .map_err(|e| Error::Other(anyhow::anyhow!("Invalid glob pattern {}: {}", pattern, e)))?;
-        
+        let pattern = glob::Pattern::new(pattern).map_err(|e| {
+            Error::Other(anyhow::anyhow!("Invalid glob pattern {}: {}", pattern, e))
+        })?;
+
         Ok(pattern.matches_path(path))
     }
 
@@ -484,7 +483,9 @@ impl PermissionManager {
     ) -> Result<()> {
         if !allowed {
             if context.params.contains_key("network") {
-                return Err(Error::Other(anyhow::anyhow!("Network access is not allowed")));
+                return Err(Error::Other(anyhow::anyhow!(
+                    "Network access is not allowed"
+                )));
             }
         }
 
@@ -493,10 +494,7 @@ impl PermissionManager {
                 // Check denied hosts first
                 for denied_host in denied_hosts {
                     if host.contains(denied_host) {
-                        return Err(Error::Other(anyhow::anyhow!(
-                            "Host {} is denied",
-                            host
-                        )));
+                        return Err(Error::Other(anyhow::anyhow!("Host {} is denied", host)));
                     }
                 }
 
@@ -596,7 +594,9 @@ impl PermissionManager {
                 operation: "write".to_string(),
                 level: PermissionLevel::Standard,
                 constraints: vec![
-                    PermissionConstraint::SizeConstraint { max_size: 10 * 1024 * 1024 }, // 10MB
+                    PermissionConstraint::SizeConstraint {
+                        max_size: 10 * 1024 * 1024,
+                    }, // 10MB
                 ],
             },
         );
@@ -626,13 +626,11 @@ impl PermissionManager {
                 resource: "web".to_string(),
                 operation: "fetch".to_string(),
                 level: PermissionLevel::Standard,
-                constraints: vec![
-                    PermissionConstraint::NetworkConstraint {
-                        allowed: true,
-                        allowed_hosts: vec![],
-                        denied_hosts: vec!["localhost".to_string(), "127.0.0.1".to_string()],
-                    },
-                ],
+                constraints: vec![PermissionConstraint::NetworkConstraint {
+                    allowed: true,
+                    allowed_hosts: vec![],
+                    denied_hosts: vec!["localhost".to_string(), "127.0.0.1".to_string()],
+                }],
             },
         );
 

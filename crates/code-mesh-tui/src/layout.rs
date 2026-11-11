@@ -1,6 +1,4 @@
-use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
-};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 /// Layout manager for organizing UI components
 #[derive(Debug, Clone)]
@@ -23,16 +21,16 @@ impl LayoutManager {
         let main_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(1),      // Main content
-                Constraint::Length(1),   // Status bar
+                Constraint::Min(1),    // Main content
+                Constraint::Length(1), // Status bar
             ])
             .split(area);
 
         let content_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(1),      // Messages/content
-                Constraint::Length(3),   // Input area
+                Constraint::Min(1),    // Messages/content
+                Constraint::Length(3), // Input area
             ])
             .split(main_layout[0]);
 
@@ -50,8 +48,8 @@ impl LayoutManager {
         let main_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(1),      // Main content
-                Constraint::Length(1),   // Status bar
+                Constraint::Min(1),    // Main content
+                Constraint::Length(1), // Status bar
             ])
             .split(area);
 
@@ -66,8 +64,8 @@ impl LayoutManager {
         let content_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(1),      // Messages/content
-                Constraint::Length(3),   // Input area
+                Constraint::Min(1),    // Messages/content
+                Constraint::Length(3), // Input area
             ])
             .split(horizontal_layout[0]);
 
@@ -391,24 +389,28 @@ impl GridLayout {
         // This is a simplified grid implementation
         // In a full implementation, this would handle complex grid logic
         let mut areas = Vec::new();
-        
-        let row_constraints: Vec<Constraint> = self.rows.iter().map(|track| {
-            match track {
+
+        let row_constraints: Vec<Constraint> = self
+            .rows
+            .iter()
+            .map(|track| match track {
                 GridTrack::Fixed(size) => Constraint::Length(*size),
                 GridTrack::Fraction(fr) => Constraint::Ratio(*fr as u32, self.rows.len() as u32),
                 GridTrack::Auto => Constraint::Min(1),
                 GridTrack::MinMax(min, _max) => Constraint::Min(*min),
-            }
-        }).collect();
+            })
+            .collect();
 
-        let col_constraints: Vec<Constraint> = self.columns.iter().map(|track| {
-            match track {
+        let col_constraints: Vec<Constraint> = self
+            .columns
+            .iter()
+            .map(|track| match track {
                 GridTrack::Fixed(size) => Constraint::Length(*size),
                 GridTrack::Fraction(fr) => Constraint::Ratio(*fr as u32, self.columns.len() as u32),
                 GridTrack::Auto => Constraint::Min(1),
                 GridTrack::MinMax(min, _max) => Constraint::Min(*min),
-            }
-        }).collect();
+            })
+            .collect();
 
         // Create row layout
         let rows = Layout::default()
@@ -461,15 +463,18 @@ impl ResponsiveLayout {
         let mut layout = Self {
             breakpoints: Vec::new(),
         };
-        
+
         // Default breakpoints
         layout.add_breakpoint(0, ResponsiveLayoutType::SingleColumn);
         layout.add_breakpoint(80, ResponsiveLayoutType::TwoColumn { left_width: 40 });
-        layout.add_breakpoint(120, ResponsiveLayoutType::ThreeColumn { 
-            left_width: 30, 
-            right_width: 30 
-        });
-        
+        layout.add_breakpoint(
+            120,
+            ResponsiveLayoutType::ThreeColumn {
+                left_width: 30,
+                right_width: 30,
+            },
+        );
+
         layout
     }
 
@@ -492,33 +497,29 @@ impl ResponsiveLayout {
     /// Apply the responsive layout
     pub fn apply(&self, area: Rect) -> Vec<Rect> {
         let layout_type = self.get_layout(area.width);
-        
+
         match layout_type {
             ResponsiveLayoutType::SingleColumn => vec![area],
-            ResponsiveLayoutType::TwoColumn { left_width } => {
-                Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([
-                        Constraint::Length(*left_width),
-                        Constraint::Min(1),
-                    ])
-                    .split(area)
-            },
-            ResponsiveLayoutType::ThreeColumn { left_width, right_width } => {
-                Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([
-                        Constraint::Length(*left_width),
-                        Constraint::Min(1),
-                        Constraint::Length(*right_width),
-                    ])
-                    .split(area)
-            },
+            ResponsiveLayoutType::TwoColumn { left_width } => Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Length(*left_width), Constraint::Min(1)])
+                .split(area),
+            ResponsiveLayoutType::ThreeColumn {
+                left_width,
+                right_width,
+            } => Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Length(*left_width),
+                    Constraint::Min(1),
+                    Constraint::Length(*right_width),
+                ])
+                .split(area),
             ResponsiveLayoutType::Custom(_custom_fn) => {
                 // For now, fallback to single column
                 // In a full implementation, we'd call the custom function
                 vec![area]
-            },
+            }
         }
     }
 }
@@ -537,7 +538,7 @@ mod tests {
     fn test_layout_manager_creation() {
         let area = Rect::new(0, 0, 100, 50);
         let layout = LayoutManager::new(area);
-        
+
         assert_eq!(layout.terminal_area, area);
         assert!(layout.main_area.height > 0);
         assert!(layout.status_area.height == 1);
@@ -548,7 +549,7 @@ mod tests {
     fn test_popup_centered() {
         let area = Rect::new(0, 0, 100, 50);
         let popup = PopupLayout::centered(area, 50, 20);
-        
+
         assert_eq!(popup.width, 50);
         assert_eq!(popup.height, 20);
         assert_eq!(popup.x, 25); // Centered horizontally
@@ -560,13 +561,13 @@ mod tests {
         let flex = FlexLayout::new()
             .direction(FlexDirection::Row)
             .justify_content(JustifyContent::SpaceBetween);
-        
+
         let items = vec![
             FlexItem::new(FlexBasis::Fixed(20)),
             FlexItem::new(FlexBasis::Flex(1.0)),
             FlexItem::new(FlexBasis::Fixed(30)),
         ];
-        
+
         let constraints = flex.apply(&items);
         assert_eq!(constraints.len(), 3);
     }
@@ -574,15 +575,15 @@ mod tests {
     #[test]
     fn test_responsive_layout() {
         let layout = ResponsiveLayout::new();
-        
+
         // Test small screen
         let small_layout = layout.get_layout(50);
         matches!(small_layout, ResponsiveLayoutType::SingleColumn);
-        
+
         // Test medium screen
         let medium_layout = layout.get_layout(90);
         matches!(medium_layout, ResponsiveLayoutType::TwoColumn { .. });
-        
+
         // Test large screen
         let large_layout = layout.get_layout(130);
         matches!(large_layout, ResponsiveLayoutType::ThreeColumn { .. });

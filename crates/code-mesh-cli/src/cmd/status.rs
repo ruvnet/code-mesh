@@ -1,14 +1,14 @@
 //! Status command implementation - System health checks and diagnostics
 
-use crate::cmd::{CliError, Result, UI, Config};
+use crate::cmd::{CliError, Config, Result, UI};
 use std::collections::HashMap;
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 /// Execute the status command
 pub async fn execute(detailed: bool) -> Result<()> {
     let mut ui = UI::new();
-    
+
     ui.print_logo()?;
     ui.info("Code Mesh System Status")?;
     ui.println("")?;
@@ -26,16 +26,16 @@ pub async fn execute(detailed: bool) -> Result<()> {
 
     // Display system information
     display_system_info(&mut ui, detailed).await?;
-    
+
     // Display health checks
     display_health_checks(&mut ui, &health_checks, detailed).await?;
-    
+
     // Display configuration status
     display_config_status(&mut ui, detailed).await?;
-    
+
     // Display authentication status
     display_auth_status(&mut ui, detailed).await?;
-    
+
     // Display recent activity (if detailed)
     if detailed {
         display_recent_activity(&mut ui).await?;
@@ -70,16 +70,16 @@ async fn run_health_checks() -> Result<HashMap<String, HealthStatus>> {
 
     // Configuration check
     checks.insert("Configuration".to_string(), check_configuration().await);
-    
+
     // Directory permissions check
     checks.insert("Directories".to_string(), check_directories().await);
-    
+
     // Authentication check
     checks.insert("Authentication".to_string(), check_authentication().await);
-    
+
     // Dependencies check
     checks.insert("Dependencies".to_string(), check_dependencies().await);
-    
+
     // Network connectivity check (basic)
     checks.insert("Network".to_string(), check_network().await);
 
@@ -89,20 +89,18 @@ async fn run_health_checks() -> Result<HashMap<String, HealthStatus>> {
 /// Check configuration status
 async fn check_configuration() -> HealthStatus {
     match Config::load() {
-        Ok(config) => {
-            match config.validate() {
-                Ok(()) => HealthStatus {
-                    healthy: true,
-                    message: "Configuration valid".to_string(),
-                    details: Some(format!("Version: {}", config.version)),
-                },
-                Err(e) => HealthStatus {
-                    healthy: false,
-                    message: "Configuration invalid".to_string(),
-                    details: Some(e.to_string()),
-                },
-            }
-        }
+        Ok(config) => match config.validate() {
+            Ok(()) => HealthStatus {
+                healthy: true,
+                message: "Configuration valid".to_string(),
+                details: Some(format!("Version: {}", config.version)),
+            },
+            Err(e) => HealthStatus {
+                healthy: false,
+                message: "Configuration invalid".to_string(),
+                details: Some(e.to_string()),
+            },
+        },
         Err(e) => HealthStatus {
             healthy: false,
             message: "Configuration not found".to_string(),
@@ -163,7 +161,8 @@ async fn check_authentication() -> HealthStatus {
         "GITHUB_TOKEN",
     ];
 
-    let env_auth_count = env_vars.iter()
+    let env_auth_count = env_vars
+        .iter()
         .filter(|var| std::env::var(var).is_ok())
         .count();
 
@@ -229,14 +228,15 @@ async fn check_dependencies() -> HealthStatus {
 async fn check_network() -> HealthStatus {
     // Simple connectivity check - try to resolve a DNS name
     // This is a basic check and doesn't test actual API endpoints
-    
+
     use std::time::Duration;
     use tokio::time::timeout;
-    
+
     let check_result = timeout(
         Duration::from_secs(5),
-        tokio::net::TcpStream::connect("8.8.8.8:53")
-    ).await;
+        tokio::net::TcpStream::connect("8.8.8.8:53"),
+    )
+    .await;
 
     match check_result {
         Ok(Ok(_)) => HealthStatus {
@@ -272,14 +272,14 @@ async fn display_system_info(ui: &mut UI, detailed: bool) -> Result<()> {
         cache_dir: Config::cache_dir()?.display().to_string(),
     };
 
-    let mut table = crate::cmd::ui::Table::new(vec![
-        "Property".to_string(),
-        "Value".to_string(),
-    ]);
+    let mut table = crate::cmd::ui::Table::new(vec!["Property".to_string(), "Value".to_string()]);
 
     table.add_row(vec!["Version".to_string(), info.version]);
-    table.add_row(vec!["Platform".to_string(), format!("{}/{}", info.platform, info.architecture)]);
-    
+    table.add_row(vec![
+        "Platform".to_string(),
+        format!("{}/{}", info.platform, info.architecture),
+    ]);
+
     if detailed {
         table.add_row(vec!["Config Directory".to_string(), info.config_dir]);
         table.add_row(vec!["Data Directory".to_string(), info.data_dir]);
@@ -309,13 +309,13 @@ async fn display_health_checks(
 
     for (component, status) in checks {
         let status_icon = if status.healthy { "✓" } else { "✗" };
-        let status_text = format!("{} {}", status_icon, if status.healthy { "OK" } else { "ISSUE" });
-        
-        table.add_row(vec![
-            component.clone(),
-            status_text,
-            status.message.clone(),
-        ]);
+        let status_text = format!(
+            "{} {}",
+            status_icon,
+            if status.healthy { "OK" } else { "ISSUE" }
+        );
+
+        table.add_row(vec![component.clone(), status_text, status.message.clone()]);
     }
 
     table.print(ui)?;
@@ -344,18 +344,31 @@ async fn display_config_status(ui: &mut UI, detailed: bool) -> Result<()> {
 
     match Config::load() {
         Ok(config) => {
-            let mut table = crate::cmd::ui::Table::new(vec![
-                "Setting".to_string(),
-                "Value".to_string(),
+            let mut table =
+                crate::cmd::ui::Table::new(vec!["Setting".to_string(), "Value".to_string()]);
+
+            table.add_row(vec![
+                "Default Profile".to_string(),
+                config.default_profile.clone(),
+            ]);
+            table.add_row(vec![
+                "Profiles".to_string(),
+                config.profiles.len().to_string(),
             ]);
 
-            table.add_row(vec!["Default Profile".to_string(), config.default_profile.clone()]);
-            table.add_row(vec!["Profiles".to_string(), config.profiles.len().to_string()]);
-            
             if detailed {
-                table.add_row(vec!["Auto Save Sessions".to_string(), config.global.auto_save_sessions.to_string()]);
-                table.add_row(vec!["Session History Limit".to_string(), config.global.session_history_limit.to_string()]);
-                table.add_row(vec!["Log Level".to_string(), config.global.log_level.clone()]);
+                table.add_row(vec![
+                    "Auto Save Sessions".to_string(),
+                    config.global.auto_save_sessions.to_string(),
+                ]);
+                table.add_row(vec![
+                    "Session History Limit".to_string(),
+                    config.global.session_history_limit.to_string(),
+                ]);
+                table.add_row(vec![
+                    "Log Level".to_string(),
+                    config.global.log_level.clone(),
+                ]);
                 table.add_row(vec!["Theme".to_string(), config.global.theme.clone()]);
             }
 
