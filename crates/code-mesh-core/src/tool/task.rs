@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
-use super::{Tool, ToolContext, ToolResult, ToolError};
+use super::{Tool, ToolContext, ToolError, ToolResult};
 use crate::agent::{TaskResult, TaskStatus};
 
 /// Task tool for agent spawning and management
@@ -106,23 +106,43 @@ impl TaskTool {
         // Register default agent types with capabilities
         agent_registry.agent_types.insert(
             "researcher".to_string(),
-            vec!["research".to_string(), "analysis".to_string(), "data_gathering".to_string()]
+            vec![
+                "research".to_string(),
+                "analysis".to_string(),
+                "data_gathering".to_string(),
+            ],
         );
         agent_registry.agent_types.insert(
             "coder".to_string(),
-            vec!["programming".to_string(), "implementation".to_string(), "debugging".to_string()]
+            vec![
+                "programming".to_string(),
+                "implementation".to_string(),
+                "debugging".to_string(),
+            ],
         );
         agent_registry.agent_types.insert(
             "analyst".to_string(),
-            vec!["analysis".to_string(), "evaluation".to_string(), "metrics".to_string()]
+            vec![
+                "analysis".to_string(),
+                "evaluation".to_string(),
+                "metrics".to_string(),
+            ],
         );
         agent_registry.agent_types.insert(
             "optimizer".to_string(),
-            vec!["optimization".to_string(), "performance".to_string(), "efficiency".to_string()]
+            vec![
+                "optimization".to_string(),
+                "performance".to_string(),
+                "efficiency".to_string(),
+            ],
         );
         agent_registry.agent_types.insert(
             "coordinator".to_string(),
-            vec!["coordination".to_string(), "orchestration".to_string(), "management".to_string()]
+            vec![
+                "coordination".to_string(),
+                "orchestration".to_string(),
+                "management".to_string(),
+            ],
         );
 
         let task_queue = TaskQueue {
@@ -138,10 +158,14 @@ impl TaskTool {
     }
 
     /// Queue a task for execution
-    pub async fn queue_task(&self, params: TaskParams, context: Value) -> std::result::Result<String, ToolError> {
+    pub async fn queue_task(
+        &self,
+        params: TaskParams,
+        context: Value,
+    ) -> std::result::Result<String, ToolError> {
         let task_id = Uuid::new_v4().to_string();
         let priority = self.parse_priority(params.priority.as_deref().unwrap_or("medium"))?;
-        
+
         let queued_task = QueuedTask {
             id: task_id.clone(),
             description: params.description,
@@ -156,10 +180,12 @@ impl TaskTool {
         };
 
         let mut queue = self.task_queue.lock().await;
-        
+
         // Add to dependency graph
         for dep in &queued_task.dependencies {
-            queue.dependencies.entry(dep.clone())
+            queue
+                .dependencies
+                .entry(dep.clone())
                 .or_insert_with(Vec::new)
                 .push(task_id.clone());
         }
@@ -194,7 +220,7 @@ impl TaskTool {
         let mut i = 0;
         while i < queue.pending.len() {
             let task = &queue.pending[i];
-            
+
             // Check if all dependencies are completed
             if self.are_dependencies_completed(&task.dependencies).await {
                 return Some(queue.pending.remove(i).unwrap());
@@ -208,7 +234,8 @@ impl TaskTool {
     async fn are_dependencies_completed(&self, dependencies: &[String]) -> bool {
         let results = self.completed_tasks.read().await;
         dependencies.iter().all(|dep_id| {
-            results.get(dep_id)
+            results
+                .get(dep_id)
                 .map(|result| matches!(result.status, TaskStatus::Completed))
                 .unwrap_or(false)
         })
@@ -217,13 +244,20 @@ impl TaskTool {
     /// Execute a task by spawning an appropriate agent
     async fn execute_task(&self, task: QueuedTask) -> std::result::Result<(), ToolError> {
         let agent_type = self.find_best_agent_type(&task.capabilities).await?;
-        let agent_id = self.spawn_virtual_agent(&agent_type, &task.capabilities).await?;
-        
+        let agent_id = self
+            .spawn_virtual_agent(&agent_type, &task.capabilities)
+            .await?;
+
         // Execute the task (simplified mock execution)
-        let result = self.execute_task_with_virtual_agent(task.clone(), &agent_id).await?;
-        
+        let result = self
+            .execute_task_with_virtual_agent(task.clone(), &agent_id)
+            .await?;
+
         // Store result
-        self.completed_tasks.write().await.insert(task.id.clone(), result);
+        self.completed_tasks
+            .write()
+            .await
+            .insert(task.id.clone(), result);
 
         // Note: Removed recursive call to avoid boxing requirement
         // Future enhancement: implement proper task scheduler
@@ -232,17 +266,21 @@ impl TaskTool {
     }
 
     /// Find the best agent type for required capabilities
-    async fn find_best_agent_type(&self, required_capabilities: &[String]) -> std::result::Result<String, ToolError> {
+    async fn find_best_agent_type(
+        &self,
+        required_capabilities: &[String],
+    ) -> std::result::Result<String, ToolError> {
         let registry = self.agent_registry.read().await;
-        
+
         let mut best_match = None;
         let mut best_score = 0;
 
         for (agent_type, capabilities) in &registry.agent_types {
-            let score = required_capabilities.iter()
+            let score = required_capabilities
+                .iter()
                 .filter(|req_cap| capabilities.contains(req_cap))
                 .count();
-            
+
             if score > best_score {
                 best_score = score;
                 best_match = Some(agent_type.clone());
@@ -250,21 +288,29 @@ impl TaskTool {
         }
 
         best_match.ok_or_else(|| {
-            ToolError::ExecutionFailed("No suitable agent type found for required capabilities".to_string())
+            ToolError::ExecutionFailed(
+                "No suitable agent type found for required capabilities".to_string(),
+            )
         })
     }
 
     /// Spawn a virtual agent (simplified implementation)
-    async fn spawn_virtual_agent(&self, agent_type: &str, _capabilities: &[String]) -> std::result::Result<String, ToolError> {
+    async fn spawn_virtual_agent(
+        &self,
+        agent_type: &str,
+        _capabilities: &[String],
+    ) -> std::result::Result<String, ToolError> {
         let mut registry = self.agent_registry.write().await;
-        
+
         if registry.current_agents >= registry.max_agents {
-            return Err(ToolError::ExecutionFailed("Agent pool at maximum capacity".to_string()));
+            return Err(ToolError::ExecutionFailed(
+                "Agent pool at maximum capacity".to_string(),
+            ));
         }
 
         let agent_id = format!("{}_{}", agent_type, Uuid::new_v4());
         registry.current_agents += 1;
-        
+
         Ok(agent_id)
     }
 
@@ -276,7 +322,7 @@ impl TaskTool {
     ) -> std::result::Result<TaskResult, ToolError> {
         // Simulate task execution
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        
+
         let output = match agent_id.split('_').next().unwrap_or("unknown") {
             "researcher" => json!({
                 "agent_type": "researcher",
@@ -284,7 +330,7 @@ impl TaskTool {
                 "findings": ["Data analysis completed", "Research methodology validated"]
             }),
             "coder" => json!({
-                "agent_type": "coder", 
+                "agent_type": "coder",
                 "result": format!("Implementation completed for: {}", task.description),
                 "code_changes": ["Functions implemented", "Tests added", "Documentation updated"]
             }),
@@ -324,7 +370,10 @@ impl TaskTool {
             "medium" => Ok(TaskPriority::Medium),
             "high" => Ok(TaskPriority::High),
             "critical" => Ok(TaskPriority::Critical),
-            _ => Err(ToolError::InvalidParameters(format!("Invalid priority: {}", priority))),
+            _ => Err(ToolError::InvalidParameters(format!(
+                "Invalid priority: {}",
+                priority
+            ))),
         }
     }
 
@@ -353,7 +402,7 @@ impl TaskTool {
     pub async fn get_agent_status(&self) -> Value {
         let registry = self.agent_registry.read().await;
         let queue = self.task_queue.lock().await;
-        
+
         json!({
             "current_agents": registry.current_agents,
             "max_agents": registry.max_agents,
@@ -365,12 +414,23 @@ impl TaskTool {
 
     /// List available agent types
     pub async fn list_agent_types(&self) -> Vec<String> {
-        self.agent_registry.read().await.agent_types.keys().cloned().collect()
+        self.agent_registry
+            .read()
+            .await
+            .agent_types
+            .keys()
+            .cloned()
+            .collect()
     }
 
     /// Get agent capabilities for a type
     pub async fn get_agent_capabilities(&self, agent_type: &str) -> Option<Vec<String>> {
-        self.agent_registry.read().await.agent_types.get(agent_type).cloned()
+        self.agent_registry
+            .read()
+            .await
+            .agent_types
+            .get(agent_type)
+            .cloned()
     }
 }
 
@@ -428,15 +488,24 @@ impl Tool for TaskTool {
         })
     }
 
-    async fn execute(&self, args: Value, ctx: ToolContext) -> std::result::Result<ToolResult, ToolError> {
+    async fn execute(
+        &self,
+        args: Value,
+        ctx: ToolContext,
+    ) -> std::result::Result<ToolResult, ToolError> {
         let params: TaskParams = serde_json::from_value(args)
             .map_err(|e| ToolError::InvalidParameters(e.to_string()))?;
 
-        let task_id = self.queue_task(params, json!({
-            "session_id": ctx.session_id,
-            "message_id": ctx.message_id,
-            "working_directory": ctx.working_directory
-        })).await?;
+        let task_id = self
+            .queue_task(
+                params,
+                json!({
+                    "session_id": ctx.session_id,
+                    "message_id": ctx.message_id,
+                    "working_directory": ctx.working_directory
+                }),
+            )
+            .await?;
 
         Ok(ToolResult {
             title: "Task Queued".to_string(),

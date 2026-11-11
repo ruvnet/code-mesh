@@ -51,16 +51,16 @@ impl Debouncer {
     {
         let now = Instant::now();
         let mut last_exec = self.last_execution.lock().await;
-        
+
         if let Some(last) = *last_exec {
             if now.duration_since(last) < self.delay {
                 return Ok(None);
             }
         }
-        
+
         *last_exec = Some(now);
         drop(last_exec);
-        
+
         f().await.map(Some)
     }
 
@@ -73,16 +73,16 @@ impl Debouncer {
     {
         let now = Instant::now();
         let mut last_exec = self.last_execution.lock();
-        
+
         if let Some(last) = *last_exec {
             if now.duration_since(last) < self.delay {
                 return Ok(None);
             }
         }
-        
+
         *last_exec = Some(now);
         drop(last_exec);
-        
+
         f().await.map(Some)
     }
 
@@ -91,7 +91,7 @@ impl Debouncer {
     pub async fn should_execute(&self) -> bool {
         let now = Instant::now();
         let last_exec = self.last_execution.lock().await;
-        
+
         if let Some(last) = *last_exec {
             now.duration_since(last) >= self.delay
         } else {
@@ -104,7 +104,7 @@ impl Debouncer {
     pub async fn should_execute(&self) -> bool {
         let now = Instant::now();
         let last_exec = self.last_execution.lock();
-        
+
         if let Some(last) = *last_exec {
             now.duration_since(last) >= self.delay
         } else {
@@ -136,7 +136,7 @@ impl RateLimiter {
     #[cfg(feature = "native")]
     pub async fn try_acquire(&self, tokens: f64) -> bool {
         self.refill_tokens().await;
-        
+
         let mut current_tokens = self.tokens.lock().await;
         if *current_tokens >= tokens {
             *current_tokens -= tokens;
@@ -150,7 +150,7 @@ impl RateLimiter {
     #[cfg(feature = "wasm")]
     pub async fn try_acquire(&self, tokens: f64) -> bool {
         self.refill_tokens().await;
-        
+
         let mut current_tokens = self.tokens.lock();
         if *current_tokens >= tokens {
             *current_tokens -= tokens;
@@ -167,7 +167,7 @@ impl RateLimiter {
             if self.try_acquire(tokens).await {
                 return Ok(());
             }
-            
+
             // Calculate wait time
             let wait_time = Duration::from_secs_f64(tokens / self.refill_rate);
             tokio::time::sleep(wait_time).await;
@@ -181,11 +181,13 @@ impl RateLimiter {
             if self.try_acquire(tokens).await {
                 return Ok(());
             }
-            
+
             // In WASM, we can't really sleep, so we yield
-            wasm_bindgen_futures::JsFuture::from(
-                js_sys::Promise::resolve(&wasm_bindgen::JsValue::UNDEFINED)
-            ).await.map_err(|_| Error::Other(anyhow::anyhow!("JS Promise failed")))?;
+            wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(
+                &wasm_bindgen::JsValue::UNDEFINED,
+            ))
+            .await
+            .map_err(|_| Error::Other(anyhow::anyhow!("JS Promise failed")))?;
         }
     }
 
@@ -195,7 +197,7 @@ impl RateLimiter {
         let now = Instant::now();
         let mut last_refill = self.last_refill.lock().await;
         let elapsed = now.duration_since(*last_refill).as_secs_f64();
-        
+
         if elapsed > 0.0 {
             let mut tokens = self.tokens.lock().await;
             let new_tokens = (*tokens + elapsed * self.refill_rate).min(self.max_tokens);
@@ -210,7 +212,7 @@ impl RateLimiter {
         let now = Instant::now();
         let mut last_refill = self.last_refill.lock();
         let elapsed = now.duration_since(*last_refill).as_secs_f64();
-        
+
         if elapsed > 0.0 {
             let mut tokens = self.tokens.lock();
             let new_tokens = (*tokens + elapsed * self.refill_rate).min(self.max_tokens);
@@ -476,27 +478,36 @@ mod tests {
         let mut counter = 0;
 
         // First call should execute
-        let result = debouncer.execute(|| async {
-            counter += 1;
-            Ok(counter)
-        }).await.unwrap();
+        let result = debouncer
+            .execute(|| async {
+                counter += 1;
+                Ok(counter)
+            })
+            .await
+            .unwrap();
         assert_eq!(result, Some(1));
 
         // Immediate second call should be debounced
-        let result = debouncer.execute(|| async {
-            counter += 1;
-            Ok(counter)
-        }).await.unwrap();
+        let result = debouncer
+            .execute(|| async {
+                counter += 1;
+                Ok(counter)
+            })
+            .await
+            .unwrap();
         assert_eq!(result, None);
 
         // Wait for debounce period
         tokio::time::sleep(Duration::from_millis(150)).await;
 
         // Now it should execute again
-        let result = debouncer.execute(|| async {
-            counter += 1;
-            Ok(counter)
-        }).await.unwrap();
+        let result = debouncer
+            .execute(|| async {
+                counter += 1;
+                Ok(counter)
+            })
+            .await
+            .unwrap();
         assert_eq!(result, Some(2));
     }
 
@@ -508,13 +519,13 @@ mod tests {
         // Should be able to acquire 2 tokens immediately
         assert!(limiter.try_acquire(1.0).await);
         assert!(limiter.try_acquire(1.0).await);
-        
+
         // Third token should fail
         assert!(!limiter.try_acquire(1.0).await);
 
         // Wait for refill
         tokio::time::sleep(Duration::from_secs(1)).await;
-        
+
         // Should be able to acquire one more token
         assert!(limiter.try_acquire(1.0).await);
     }
@@ -523,17 +534,17 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker() {
         let breaker = CircuitBreaker::new(2, 1, Duration::from_millis(100));
-        
+
         // Should start closed
         assert_eq!(breaker.state().await, CircuitState::Closed);
 
         // Fail twice to open the circuit
-        let _result = breaker.execute(|| async { 
-            Err::<(), _>(Error::Other(anyhow::anyhow!("Test error")))
-        }).await;
-        let _result = breaker.execute(|| async { 
-            Err::<(), _>(Error::Other(anyhow::anyhow!("Test error")))
-        }).await;
+        let _result = breaker
+            .execute(|| async { Err::<(), _>(Error::Other(anyhow::anyhow!("Test error"))) })
+            .await;
+        let _result = breaker
+            .execute(|| async { Err::<(), _>(Error::Other(anyhow::anyhow!("Test error"))) })
+            .await;
 
         // Circuit should now be open
         assert_eq!(breaker.state().await, CircuitState::Open);

@@ -1,24 +1,24 @@
 //! Utility functions and helpers for Code Mesh Core
 
 use crate::{Error, Result};
+use ::url::Url as UrlType;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use ::url::Url as UrlType;
 
 /// File system utilities
 pub mod fs {
     use super::*;
     use std::fs;
-    
+
     /// Safely canonicalize a path, handling cases where the path doesn't exist
     pub fn safe_canonicalize<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
         let path = path.as_ref();
-        
+
         // Try direct canonicalization first
         if let Ok(canonical) = fs::canonicalize(path) {
             return Ok(canonical);
         }
-        
+
         // If that fails, try to canonicalize the parent and append the filename
         if let Some(parent) = path.parent() {
             if let Some(filename) = path.file_name() {
@@ -27,32 +27,32 @@ pub mod fs {
                 }
             }
         }
-        
+
         // Fall back to absolute path
         let current_dir = std::env::current_dir()?;
         Ok(current_dir.join(path))
     }
-    
+
     /// Get file size safely
     pub fn file_size<P: AsRef<Path>>(path: P) -> Result<u64> {
         let metadata = fs::metadata(path)?;
         Ok(metadata.len())
     }
-    
+
     /// Check if a path is safe to access (no directory traversal)
     pub fn is_safe_path<P: AsRef<Path>>(base: P, target: P) -> Result<bool> {
         let base = safe_canonicalize(base)?;
         let target = safe_canonicalize(target)?;
-        
+
         Ok(target.starts_with(base))
     }
-    
+
     /// Create directories recursively with proper error handling
     pub fn ensure_dir<P: AsRef<Path>>(path: P) -> Result<()> {
         fs::create_dir_all(path)?;
         Ok(())
     }
-    
+
     /// Get file extension as lowercase string
     pub fn file_extension<P: AsRef<Path>>(path: P) -> Option<String> {
         path.as_ref()
@@ -60,13 +60,13 @@ pub mod fs {
             .and_then(|ext| ext.to_str())
             .map(|ext| ext.to_lowercase())
     }
-    
+
     /// Check if file is binary based on content
     pub fn is_binary_file<P: AsRef<Path>>(path: P) -> Result<bool> {
         let mut buffer = [0; 1024];
         let file = std::fs::File::open(path)?;
         let bytes_read = std::io::Read::read(&mut std::io::BufReader::new(file), &mut buffer)?;
-        
+
         // Check for null bytes, which typically indicate binary content
         Ok(buffer[..bytes_read].contains(&0))
     }
@@ -75,7 +75,7 @@ pub mod fs {
 /// String utilities
 pub mod string {
     use super::*;
-    
+
     /// Truncate string to specified length with ellipsis
     pub fn truncate(s: &str, max_len: usize) -> String {
         if s.len() <= max_len {
@@ -86,7 +86,7 @@ pub mod string {
             format!("{}...", &s[..max_len - 3])
         }
     }
-    
+
     /// Escape string for safe inclusion in JSON
     pub fn escape_json(s: &str) -> String {
         s.replace('\\', "\\\\")
@@ -95,7 +95,7 @@ pub mod string {
             .replace('\r', "\\r")
             .replace('\t', "\\t")
     }
-    
+
     /// Clean string for use as filename
     pub fn sanitize_filename(s: &str) -> String {
         s.chars()
@@ -106,7 +106,7 @@ pub mod string {
             })
             .collect()
     }
-    
+
     /// Convert camelCase to snake_case
     pub fn camel_to_snake(s: &str) -> String {
         let chars: Vec<char> = s.chars().collect();
@@ -118,7 +118,10 @@ pub mod string {
                 let next_is_lower = chars.get(i + 1).is_some_and(|n| n.is_lowercase());
                 // Word boundary: "camelCase" -> "camel_case", and the end of an
                 // acronym: "HTTPSConnection" -> "https_connection".
-                if prev.is_lowercase() || prev.is_ascii_digit() || (prev.is_uppercase() && next_is_lower) {
+                if prev.is_lowercase()
+                    || prev.is_ascii_digit()
+                    || (prev.is_uppercase() && next_is_lower)
+                {
                     result.push('_');
                 }
             }
@@ -127,13 +130,17 @@ pub mod string {
 
         result
     }
-    
+
     /// Extract lines around a specific line number
-    pub fn extract_context(content: &str, line_number: usize, context: usize) -> Vec<(usize, &str)> {
+    pub fn extract_context(
+        content: &str,
+        line_number: usize,
+        context: usize,
+    ) -> Vec<(usize, &str)> {
         let lines: Vec<&str> = content.lines().collect();
         let start = line_number.saturating_sub(context);
         let end = (line_number + context + 1).min(lines.len());
-        
+
         lines[start..end]
             .iter()
             .enumerate()
@@ -145,7 +152,7 @@ pub mod string {
 /// Time utilities
 pub mod time {
     use super::*;
-    
+
     /// Get current timestamp as seconds since Unix epoch
     pub fn now_timestamp() -> Result<u64> {
         SystemTime::now()
@@ -153,89 +160,88 @@ pub mod time {
             .map(|d| d.as_secs())
             .map_err(|e| Error::Other(anyhow::anyhow!("Time error: {}", e)))
     }
-    
+
     /// Format duration in human-readable form
     pub fn format_duration(duration: Duration) -> String {
         let total_seconds = duration.as_secs();
-        
+
         if total_seconds < 60 {
             format!("{}s", total_seconds)
         } else if total_seconds < 3600 {
             format!("{}m {}s", total_seconds / 60, total_seconds % 60)
         } else if total_seconds < 86400 {
-            format!(
-                "{}h {}m", 
-                total_seconds / 3600, 
-                (total_seconds % 3600) / 60
-            )
+            format!("{}h {}m", total_seconds / 3600, (total_seconds % 3600) / 60)
         } else {
             format!(
-                "{}d {}h", 
-                total_seconds / 86400, 
+                "{}d {}h",
+                total_seconds / 86400,
                 (total_seconds % 86400) / 3600
             )
         }
     }
-    
+
     /// Parse duration from human-readable string
     pub fn parse_duration(s: &str) -> Result<Duration> {
         let s = s.trim().to_lowercase();
-        
+
         if let Ok(seconds) = s.parse::<u64>() {
             return Ok(Duration::from_secs(seconds));
         }
-        
+
         if s.ends_with("ms") {
             let ms = s[..s.len() - 2].parse::<u64>()?;
             return Ok(Duration::from_millis(ms));
         }
-        
+
         if s.ends_with('s') {
             let secs = s[..s.len() - 1].parse::<u64>()?;
             return Ok(Duration::from_secs(secs));
         }
-        
+
         if s.ends_with('m') {
             let mins = s[..s.len() - 1].parse::<u64>()?;
             return Ok(Duration::from_secs(mins * 60));
         }
-        
+
         if s.ends_with('h') {
             let hours = s[..s.len() - 1].parse::<u64>()?;
             return Ok(Duration::from_secs(hours * 3600));
         }
-        
+
         if s.ends_with('d') {
             let days = s[..s.len() - 1].parse::<u64>()?;
             return Ok(Duration::from_secs(days * 86400));
         }
-        
-        Err(Error::Other(anyhow::anyhow!("Invalid duration format: {}", s)))
+
+        Err(Error::Other(anyhow::anyhow!(
+            "Invalid duration format: {}",
+            s
+        )))
     }
 }
 
 /// Hash utilities
 pub mod hash {
     use super::*;
-    use sha2::{Sha256, Digest};
-    
+    use sha2::{Digest, Sha256};
+
     /// Generate SHA-256 hash of content
     pub fn sha256(content: &[u8]) -> String {
         let mut hasher = Sha256::new();
         hasher.update(content);
         hex::encode(hasher.finalize())
     }
-    
+
     /// Generate SHA-256 hash of string
     pub fn sha256_string(content: &str) -> String {
         sha256(content.as_bytes())
     }
-    
+
     /// Generate content hash for caching
     pub fn content_hash(content: &str) -> String {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         content.hash(&mut hasher);
         format!("{:x}", hasher.finish())
@@ -245,30 +251,31 @@ pub mod hash {
 /// URL utilities
 pub mod url {
     use super::*;
-    
+
     /// Validate URL format
     pub fn is_valid_url(s: &str) -> bool {
         UrlType::parse(s).is_ok()
     }
-    
+
     /// Extract domain from URL
     pub fn extract_domain(url_str: &str) -> Result<String> {
         let url = UrlType::parse(url_str)
             .map_err(|e| Error::Other(anyhow::anyhow!("Invalid URL: {}", e)))?;
-        
+
         url.host_str()
             .map(|host| host.to_string())
             .ok_or_else(|| Error::Other(anyhow::anyhow!("No host in URL")))
     }
-    
+
     /// Join URL paths safely
     pub fn join_path(base: &str, path: &str) -> Result<String> {
         let mut url = UrlType::parse(base)
             .map_err(|e| Error::Other(anyhow::anyhow!("Invalid base URL: {}", e)))?;
-        
-        url = url.join(path)
+
+        url = url
+            .join(path)
             .map_err(|e| Error::Other(anyhow::anyhow!("Failed to join path: {}", e)))?;
-        
+
         Ok(url.to_string())
     }
 }
@@ -276,12 +283,12 @@ pub mod url {
 /// Process utilities
 pub mod process {
     use super::*;
-    
+
     /// Check if a command exists in PATH
     pub fn command_exists(command: &str) -> bool {
         which::which(command).is_ok()
     }
-    
+
     /// Get available shell command
     pub fn get_shell() -> String {
         if cfg!(windows) {
@@ -290,7 +297,7 @@ pub mod process {
             std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
         }
     }
-    
+
     /// Escape shell argument
     pub fn escape_shell_arg(arg: &str) -> String {
         if cfg!(windows) {
@@ -314,45 +321,55 @@ pub mod process {
 /// Memory utilities
 pub mod memory {
     use super::*;
-    
+
     /// Format bytes in human-readable form
     pub fn format_bytes(bytes: u64) -> String {
         const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
         const THRESHOLD: u64 = 1024;
-        
+
         if bytes < THRESHOLD {
             return format!("{} B", bytes);
         }
-        
+
         let mut size = bytes as f64;
         let mut unit_index = 0;
-        
+
         while size >= THRESHOLD as f64 && unit_index < UNITS.len() - 1 {
             size /= THRESHOLD as f64;
             unit_index += 1;
         }
-        
+
         format!("{:.1} {}", size, UNITS[unit_index])
     }
-    
+
     /// Parse bytes from human-readable string
     pub fn parse_bytes(s: &str) -> Result<u64> {
         let s = s.trim().to_uppercase();
-        
+
         if let Ok(bytes) = s.parse::<u64>() {
             return Ok(bytes);
         }
-        
+
         let (number_part, unit_part) = if s.ends_with('B') {
-            let unit_start = s.len() - if s.ends_with("KB") || s.ends_with("MB") || s.ends_with("GB") || s.ends_with("TB") { 2 } else { 1 };
+            let unit_start = s.len()
+                - if s.ends_with("KB")
+                    || s.ends_with("MB")
+                    || s.ends_with("GB")
+                    || s.ends_with("TB")
+                {
+                    2
+                } else {
+                    1
+                };
             (s[..unit_start].trim(), &s[unit_start..])
         } else {
             (s.as_str(), "B")
         };
-        
-        let number: f64 = number_part.parse()
+
+        let number: f64 = number_part
+            .parse()
             .map_err(|_| Error::Other(anyhow::anyhow!("Invalid number: {}", number_part)))?;
-        
+
         let multiplier = match unit_part {
             "B" => 1,
             "KB" => 1024,
@@ -361,7 +378,7 @@ pub mod memory {
             "TB" => 1024_u64.pow(4),
             _ => return Err(Error::Other(anyhow::anyhow!("Invalid unit: {}", unit_part))),
         };
-        
+
         Ok((number * multiplier as f64) as u64)
     }
 }
@@ -369,54 +386,67 @@ pub mod memory {
 /// Validation utilities
 pub mod validation {
     use super::*;
-    
+
     /// Validate email format
     pub fn is_valid_email(email: &str) -> bool {
-        let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+        let email_regex =
+            regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
         email_regex.is_match(email)
     }
-    
+
     /// Validate API key format (basic check)
     pub fn is_valid_api_key(key: &str) -> bool {
-        !key.is_empty() && key.len() >= 10 && key.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        !key.is_empty()
+            && key.len() >= 10
+            && key
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
     }
-    
+
     /// Validate session ID format
     pub fn is_valid_session_id(id: &str) -> bool {
-        !id.is_empty() && id.len() <= 256 && id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        !id.is_empty()
+            && id.len() <= 256
+            && id
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
     }
-    
+
     /// Validate model name format
     pub fn is_valid_model_name(name: &str) -> bool {
-        !name.is_empty() && name.len() <= 100 && name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '/' || c == '.')
+        !name.is_empty()
+            && name.len() <= 100
+            && name
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '/' || c == '.')
     }
 }
 
 /// Configuration utilities
 pub mod config {
     use super::*;
-    
+
     /// Get configuration directory for the application
     pub fn config_dir() -> Result<PathBuf> {
         dirs::config_dir()
             .map(|dir| dir.join("code-mesh"))
             .ok_or_else(|| Error::Other(anyhow::anyhow!("Could not find config directory")))
     }
-    
+
     /// Get data directory for the application
     pub fn data_dir() -> Result<PathBuf> {
         dirs::data_dir()
             .map(|dir| dir.join("code-mesh"))
             .ok_or_else(|| Error::Other(anyhow::anyhow!("Could not find data directory")))
     }
-    
+
     /// Get cache directory for the application
     pub fn cache_dir() -> Result<PathBuf> {
         dirs::cache_dir()
             .map(|dir| dir.join("code-mesh"))
             .ok_or_else(|| Error::Other(anyhow::anyhow!("Could not find cache directory")))
     }
-    
+
     /// Ensure all application directories exist
     pub fn ensure_app_dirs() -> Result<()> {
         fs::ensure_dir(config_dir()?)?;
@@ -446,7 +476,10 @@ mod tests {
     #[test]
     fn test_camel_to_snake() {
         assert_eq!(string::camel_to_snake("camelCase"), "camel_case");
-        assert_eq!(string::camel_to_snake("HTTPSConnection"), "https_connection");
+        assert_eq!(
+            string::camel_to_snake("HTTPSConnection"),
+            "https_connection"
+        );
         assert_eq!(string::camel_to_snake("simple"), "simple");
     }
 
@@ -471,10 +504,10 @@ mod tests {
     fn test_validation() {
         assert!(validation::is_valid_email("test@example.com"));
         assert!(!validation::is_valid_email("invalid-email"));
-        
+
         assert!(validation::is_valid_api_key("sk-1234567890abcdef"));
         assert!(!validation::is_valid_api_key("short"));
-        
+
         assert!(validation::is_valid_model_name("anthropic/claude-3-opus"));
         assert!(!validation::is_valid_model_name(""));
     }

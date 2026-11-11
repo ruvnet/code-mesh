@@ -8,17 +8,26 @@ use std::time::Duration;
 #[async_trait]
 pub trait Memory: Send + Sync {
     /// Store a value with optional TTL
-    async fn store(&self, key: &str, value: MemoryValue, ttl: Option<Duration>) -> crate::Result<()>;
-    
+    async fn store(
+        &self,
+        key: &str,
+        value: MemoryValue,
+        ttl: Option<Duration>,
+    ) -> crate::Result<()>;
+
     /// Retrieve a value
     async fn retrieve(&self, key: &str) -> crate::Result<Option<MemoryValue>>;
-    
+
     /// Delete a value
     async fn delete(&self, key: &str) -> crate::Result<()>;
-    
+
     /// Search for values matching a pattern
-    async fn search(&self, pattern: &str, limit: usize) -> crate::Result<Vec<(String, MemoryValue)>>;
-    
+    async fn search(
+        &self,
+        pattern: &str,
+        limit: usize,
+    ) -> crate::Result<Vec<(String, MemoryValue)>>;
+
     /// List all keys in a namespace
     async fn list_namespace(&self, namespace: &str) -> crate::Result<Vec<String>>;
 }

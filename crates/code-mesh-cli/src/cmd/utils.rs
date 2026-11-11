@@ -41,7 +41,9 @@ impl Utils {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| CliError::CommandFailed(format!("Failed to execute {}: {}", command, e)))?;
+            .map_err(|e| {
+                CliError::CommandFailed(format!("Failed to execute {}: {}", command, e))
+            })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -56,8 +58,7 @@ impl Utils {
 
     /// Check if we're running in a git repository
     pub fn is_git_repo(path: &Path) -> bool {
-        path.join(".git").exists() || 
-        path.ancestors().any(|p| p.join(".git").exists())
+        path.join(".git").exists() || path.ancestors().any(|p| p.join(".git").exists())
     }
 
     /// Get git root directory
@@ -106,7 +107,7 @@ impl Utils {
     /// Format duration as human readable
     pub fn format_duration(duration: Duration) -> String {
         let secs = duration.as_secs();
-        
+
         if secs < 60 {
             format!("{}s", secs)
         } else if secs < 3600 {
@@ -134,9 +135,9 @@ impl Utils {
 
     /// Check if terminal supports colors
     pub fn supports_color() -> bool {
-        std::io::IsTerminal::is_terminal(&std::io::stderr()) && 
-        std::env::var("NO_COLOR").is_err() &&
-        std::env::var("TERM").map(|t| t != "dumb").unwrap_or(true)
+        std::io::IsTerminal::is_terminal(&std::io::stderr())
+            && std::env::var("NO_COLOR").is_err()
+            && std::env::var("TERM").map(|t| t != "dumb").unwrap_or(true)
     }
 
     /// Open URL in default browser
@@ -172,13 +173,13 @@ impl Utils {
     /// Clean up old backup files
     pub fn cleanup_backups(dir: &Path, keep_count: usize) -> Result<usize> {
         let mut backups = Vec::new();
-        
+
         for entry in fs::read_dir(dir)
             .map_err(|e| CliError::FileSystem(format!("Failed to read directory: {}", e)))?
         {
-            let entry = entry
-                .map_err(|e| CliError::FileSystem(format!("Failed to read entry: {}", e)))?;
-            
+            let entry =
+                entry.map_err(|e| CliError::FileSystem(format!("Failed to read entry: {}", e)))?;
+
             let path = entry.path();
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 if name.contains(".backup.") {
@@ -225,23 +226,25 @@ impl ProjectDetector {
         if file_names.contains(&"Cargo.toml".to_string()) {
             return Some("rust".to_string());
         }
-        
+
         if file_names.contains(&"package.json".to_string()) {
             return Some("javascript".to_string());
         }
-        
-        if file_names.contains(&"pyproject.toml".to_string()) || 
-           file_names.contains(&"setup.py".to_string()) ||
-           file_names.contains(&"requirements.txt".to_string()) {
+
+        if file_names.contains(&"pyproject.toml".to_string())
+            || file_names.contains(&"setup.py".to_string())
+            || file_names.contains(&"requirements.txt".to_string())
+        {
             return Some("python".to_string());
         }
-        
+
         if file_names.contains(&"go.mod".to_string()) {
             return Some("go".to_string());
         }
-        
-        if file_names.contains(&"pom.xml".to_string()) ||
-           file_names.contains(&"build.gradle".to_string()) {
+
+        if file_names.contains(&"pom.xml".to_string())
+            || file_names.contains(&"build.gradle".to_string())
+        {
             return Some("java".to_string());
         }
 
@@ -290,12 +293,18 @@ impl Validator {
     /// Validate session ID format
     pub fn validate_session_id(session_id: &str) -> Result<()> {
         if session_id.is_empty() {
-            return Err(CliError::InvalidInput("Session ID cannot be empty".to_string()));
+            return Err(CliError::InvalidInput(
+                "Session ID cannot be empty".to_string(),
+            ));
         }
 
-        if !session_id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        if !session_id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
             return Err(CliError::InvalidInput(
-                "Session ID can only contain alphanumeric characters, hyphens, and underscores".to_string(),
+                "Session ID can only contain alphanumeric characters, hyphens, and underscores"
+                    .to_string(),
             ));
         }
 

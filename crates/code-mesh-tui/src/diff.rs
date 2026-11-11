@@ -1,16 +1,12 @@
 use anyhow::Result;
 use ratatui::{
     layout::Rect,
-    widgets::{Block, Borders, Paragraph},
     style::Style,
     text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
 };
 
-use crate::{
-    renderer::Renderer,
-    theme::Theme,
-    config::DiffStyle,
-};
+use crate::{config::DiffStyle, renderer::Renderer, theme::Theme};
 
 /// Diff viewer component for showing file differences
 pub struct DiffViewer {
@@ -50,10 +46,10 @@ pub struct DiffLine {
 /// Type of diff line
 #[derive(Debug, Clone, PartialEq)]
 pub enum DiffLineType {
-    Context,  // Unchanged line
-    Added,    // Added line (+)
-    Removed,  // Removed line (-)
-    Header,   // Diff header
+    Context, // Unchanged line
+    Added,   // Added line (+)
+    Removed, // Removed line (-)
+    Header,  // Diff header
 }
 
 impl DiffViewer {
@@ -66,7 +62,7 @@ impl DiffViewer {
             scroll_offset: 0,
         }
     }
-    
+
     /// Load diff content from a string
     pub fn load_diff(&mut self, diff_text: &str) -> Result<()> {
         let diff_content = self.parse_diff(diff_text)?;
@@ -74,12 +70,12 @@ impl DiffViewer {
         self.scroll_offset = 0;
         Ok(())
     }
-    
+
     /// Set the diff style
     pub fn set_style(&mut self, style: DiffStyle) {
         self.style = style;
     }
-    
+
     /// Toggle between unified and side-by-side view
     pub fn toggle_style(&mut self) {
         self.style = match self.style {
@@ -87,14 +83,14 @@ impl DiffViewer {
             DiffStyle::SideBySide => DiffStyle::Unified,
         };
     }
-    
+
     /// Scroll up
     pub fn scroll_up(&mut self) {
         if self.scroll_offset > 0 {
             self.scroll_offset -= 1;
         }
     }
-    
+
     /// Scroll down
     pub fn scroll_down(&mut self) {
         if let Some(ref diff) = self.current_diff {
@@ -104,14 +100,14 @@ impl DiffViewer {
             }
         }
     }
-    
+
     /// Parse unified diff format
     fn parse_diff(&self, diff_text: &str) -> Result<DiffContent> {
         let mut hunks = Vec::new();
         let mut current_hunk: Option<DiffHunk> = None;
         let mut original_file = String::new();
         let mut modified_file = String::new();
-        
+
         for line in diff_text.lines() {
             if line.starts_with("--- ") {
                 original_file = line[4..].to_string();
@@ -122,7 +118,7 @@ impl DiffViewer {
                 if let Some(hunk) = current_hunk.take() {
                     hunks.push(hunk);
                 }
-                
+
                 // Parse hunk header
                 let hunk = self.parse_hunk_header(line)?;
                 current_hunk = Some(hunk);
@@ -132,19 +128,19 @@ impl DiffViewer {
                 hunk.lines.push(diff_line);
             }
         }
-        
+
         // Add the last hunk
         if let Some(hunk) = current_hunk {
             hunks.push(hunk);
         }
-        
+
         Ok(DiffContent {
             original_file,
             modified_file,
             hunks,
         })
     }
-    
+
     /// Parse a hunk header line (e.g., "@@ -1,4 +1,6 @@")
     fn parse_hunk_header(&self, line: &str) -> Result<DiffHunk> {
         // Simple regex-like parsing for "@@ -start,count +start,count @@"
@@ -152,13 +148,13 @@ impl DiffViewer {
         if parts.len() < 3 {
             return Err(anyhow::anyhow!("Invalid hunk header: {}", line));
         }
-        
+
         let original_part = parts[1];
         let modified_part = parts[2];
-        
+
         let (original_start, original_count) = self.parse_range(original_part)?;
         let (modified_start, modified_count) = self.parse_range(modified_part)?;
-        
+
         Ok(DiffHunk {
             original_start,
             original_count,
@@ -167,11 +163,11 @@ impl DiffViewer {
             lines: Vec::new(),
         })
     }
-    
+
     /// Parse a range like "-1,4" or "+1,6"
     fn parse_range(&self, range: &str) -> Result<(usize, usize)> {
         let range = &range[1..]; // Remove +/- prefix
-        
+
         if let Some(comma_pos) = range.find(',') {
             let start = range[..comma_pos].parse::<usize>()?;
             let count = range[comma_pos + 1..].parse::<usize>()?;
@@ -181,7 +177,7 @@ impl DiffViewer {
             Ok((start, 1))
         }
     }
-    
+
     /// Parse a diff line
     fn parse_diff_line(&self, line: &str, existing_lines: &[DiffLine]) -> Result<DiffLine> {
         if line.is_empty() {
@@ -192,28 +188,31 @@ impl DiffViewer {
                 modified_line_number: None,
             });
         }
-        
+
         let line_type = match line.chars().next().unwrap_or(' ') {
             '+' => DiffLineType::Added,
             '-' => DiffLineType::Removed,
             ' ' => DiffLineType::Context,
             _ => DiffLineType::Header,
         };
-        
+
         let content = if line.len() > 1 {
             line[1..].to_string()
         } else {
             String::new()
         };
-        
+
         // Calculate line numbers (simplified)
         let (original_line_number, modified_line_number) = match line_type {
             DiffLineType::Added => (None, Some(existing_lines.len() + 1)),
             DiffLineType::Removed => (Some(existing_lines.len() + 1), None),
-            DiffLineType::Context => (Some(existing_lines.len() + 1), Some(existing_lines.len() + 1)),
+            DiffLineType::Context => (
+                Some(existing_lines.len() + 1),
+                Some(existing_lines.len() + 1),
+            ),
             DiffLineType::Header => (None, None),
         };
-        
+
         Ok(DiffLine {
             line_type,
             content,
@@ -221,7 +220,7 @@ impl DiffViewer {
             modified_line_number,
         })
     }
-    
+
     /// Render the diff viewer
     pub fn render(&self, renderer: &Renderer, area: Rect) {
         let title = if let Some(ref diff) = self.current_diff {
@@ -229,16 +228,16 @@ impl DiffViewer {
         } else {
             "No diff loaded".to_string()
         };
-        
+
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
             .border_style(Style::default().fg(self.theme.border()));
-        
+
         renderer.render_widget(block.clone(), area);
-        
+
         let inner_area = block.inner(area);
-        
+
         if let Some(ref diff) = self.current_diff {
             match self.style {
                 DiffStyle::Unified => self.render_unified(renderer, inner_area, diff),
@@ -250,11 +249,11 @@ impl DiffViewer {
             renderer.render_widget(empty_msg, inner_area);
         }
     }
-    
+
     /// Render unified diff view
     fn render_unified(&self, renderer: &Renderer, area: Rect, diff: &DiffContent) {
         let mut lines = Vec::new();
-        
+
         // Collect all lines from all hunks
         let mut all_lines = Vec::new();
         for hunk in &diff.hunks {
@@ -262,13 +261,13 @@ impl DiffViewer {
                 all_lines.push(line);
             }
         }
-        
+
         // Show visible portion
         let visible_height = area.height as usize;
         let start_line = self.scroll_offset;
         let end_line = (start_line + visible_height).min(all_lines.len());
         let visible_lines = &all_lines[start_line..end_line];
-        
+
         for line in visible_lines {
             let (prefix, style) = match line.line_type {
                 DiffLineType::Added => ("+", Style::default().fg(self.theme.diff_added())),
@@ -276,21 +275,20 @@ impl DiffViewer {
                 DiffLineType::Context => (" ", Style::default().fg(self.theme.text())),
                 DiffLineType::Header => ("@", Style::default().fg(self.theme.accent())),
             };
-            
+
             let formatted_line = Line::from(vec![
                 Span::styled(prefix, style),
                 Span::styled(&line.content, style),
             ]);
-            
+
             lines.push(formatted_line);
         }
-        
-        let paragraph = Paragraph::new(lines)
-            .style(Style::default().bg(self.theme.background()));
-        
+
+        let paragraph = Paragraph::new(lines).style(Style::default().bg(self.theme.background()));
+
         renderer.render_widget(paragraph, area);
     }
-    
+
     /// Render side-by-side diff view
     fn render_side_by_side(&self, renderer: &Renderer, area: Rect, diff: &DiffContent) {
         // Split area into left and right halves
@@ -301,14 +299,14 @@ impl DiffViewer {
                 ratatui::layout::Constraint::Percentage(50),
             ])
             .split(area);
-        
+
         // Render original file (left side)
         self.render_side(renderer, chunks[0], diff, true);
-        
+
         // Render modified file (right side)
         self.render_side(renderer, chunks[1], diff, false);
     }
-    
+
     /// Render one side of the side-by-side view
     fn render_side(&self, renderer: &Renderer, area: Rect, diff: &DiffContent, is_original: bool) {
         let title = if is_original {
@@ -316,18 +314,18 @@ impl DiffViewer {
         } else {
             &diff.modified_file
         };
-        
+
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
             .border_style(Style::default().fg(self.theme.border()));
-        
+
         renderer.render_widget(block.clone(), area);
-        
+
         let inner_area = block.inner(area);
-        
+
         let mut lines = Vec::new();
-        
+
         // Collect relevant lines for this side
         let mut all_lines = Vec::new();
         for hunk in &diff.hunks {
@@ -347,13 +345,13 @@ impl DiffViewer {
                 }
             }
         }
-        
+
         // Show visible portion
         let visible_height = inner_area.height as usize;
         let start_line = self.scroll_offset;
         let end_line = (start_line + visible_height).min(all_lines.len());
         let visible_lines = &all_lines[start_line..end_line];
-        
+
         for line in visible_lines {
             let style = match line.line_type {
                 DiffLineType::Added => Style::default().fg(self.theme.diff_added()),
@@ -361,28 +359,30 @@ impl DiffViewer {
                 DiffLineType::Context => Style::default().fg(self.theme.text()),
                 DiffLineType::Header => Style::default().fg(self.theme.accent()),
             };
-            
+
             let line_number = if is_original {
                 line.original_line_number
             } else {
                 line.modified_line_number
             };
-            
+
             let formatted_line = if let Some(num) = line_number {
                 Line::from(vec![
-                    Span::styled(format!("{:4} ", num), Style::default().fg(self.theme.text_muted())),
+                    Span::styled(
+                        format!("{:4} ", num),
+                        Style::default().fg(self.theme.text_muted()),
+                    ),
                     Span::styled(&line.content, style),
                 ])
             } else {
                 Line::from(Span::styled(&line.content, style))
             };
-            
+
             lines.push(formatted_line);
         }
-        
-        let paragraph = Paragraph::new(lines)
-            .style(Style::default().bg(self.theme.background()));
-        
+
+        let paragraph = Paragraph::new(lines).style(Style::default().bg(self.theme.background()));
+
         renderer.render_widget(paragraph, inner_area);
     }
 }
@@ -390,7 +390,7 @@ impl DiffViewer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_diff_parsing() {
         let diff_text = r#"--- a/file.txt
@@ -401,24 +401,24 @@ mod tests {
 +line 2 modified
 +line 2.5 added
  line 3"#;
-        
+
         let theme = crate::theme::DefaultTheme;
         let mut viewer = DiffViewer::new(&theme);
         let result = viewer.load_diff(diff_text);
         assert!(result.is_ok());
-        
+
         let diff = viewer.current_diff.unwrap();
         assert_eq!(diff.original_file, "a/file.txt");
         assert_eq!(diff.modified_file, "b/file.txt");
         assert_eq!(diff.hunks.len(), 1);
         assert_eq!(diff.hunks[0].lines.len(), 4);
     }
-    
+
     #[test]
     fn test_range_parsing() {
         let theme = crate::theme::DefaultTheme;
         let viewer = DiffViewer::new(&theme);
-        
+
         assert_eq!(viewer.parse_range("-1,3").unwrap(), (1, 3));
         assert_eq!(viewer.parse_range("+5,2").unwrap(), (5, 2));
         assert_eq!(viewer.parse_range("-10").unwrap(), (10, 1));

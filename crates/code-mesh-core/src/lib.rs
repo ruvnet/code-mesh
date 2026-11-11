@@ -1,27 +1,27 @@
 //! # Code Mesh Core
-//! 
+//!
 //! **Code Mesh Core** is the foundational library for the Code Mesh AI coding assistant.
 //! It provides a comprehensive set of abstractions and implementations for building
 //! AI-powered development tools.
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - **🤖 Multi-LLM Support**: Unified interface for Anthropic Claude, OpenAI GPT, Google Gemini, and more
 //! - **🛠️ Extensible Tool System**: Built-in tools for file operations, code execution, web search, and custom extensions
 //! - **💾 Session Management**: Persistent conversation history with intelligent context management
 //! - **🔐 Secure Authentication**: OAuth and API key support with encrypted credential storage
 //! - **🌐 Cross-Platform**: Native performance with WebAssembly compatibility
 //! - **🧠 Agent Orchestration**: Multi-agent coordination for complex coding workflows
-//! 
+//!
 //! ## Quick Start
 //!
 //! The examples below describe the planned API and are not compiled; see
 //! https://github.com/ruvnet/code-mesh/issues/29.
-//! 
+//!
 //! ```rust,ignore
 //! use code_mesh_core::{Session, LanguageModel, ProviderRegistry, ToolRegistry};
 //! use tokio;
-//! 
+//!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Initialize provider registry
@@ -43,111 +43,111 @@
 //!     Ok(())
 //! }
 //! ```
-//! 
+//!
 //! ## Architecture Overview
-//! 
+//!
 //! Code Mesh Core is built around several key abstractions:
-//! 
+//!
 //! ### Language Models ([`llm`] module)
-//! 
+//!
 //! The [`LanguageModel`] trait provides a unified interface for interacting with different
 //! AI providers. Implementations are available for major providers:
-//! 
+//!
 //! - [`AnthropicProvider`] - Claude models via Anthropic API
 //! - [`OpenAIProvider`] - GPT models via OpenAI API
 //! - [`MistralProvider`] - Mistral models via Mistral AI API
-//! 
+//!
 //! ### Tools ([`tool`] module)
-//! 
+//!
 //! The [`Tool`] trait enables AI agents to interact with external systems:
-//! 
+//!
 //! - [`FileTools`] - Read, write, and search files
 //! - [`BashTool`] - Execute shell commands safely
 //! - [`WebTool`] - Search the web and fetch documentation
 //! - [`GitTool`] - Git operations and repository management
-//! 
+//!
 //! ### Sessions ([`session`] module)
-//! 
+//!
 //! Sessions manage conversation state and context:
-//! 
+//!
 //! - [`Session`] - Core conversation management
 //! - [`SessionManager`] - Persistence and retrieval
 //! - [`Message`] - Individual conversation messages
-//! 
+//!
 //! ### Authentication ([`auth`] module)
-//! 
+//!
 //! Secure credential management for AI providers:
-//! 
+//!
 //! - [`Auth`] - Authentication interface
 //! - [`CredentialStore`] - Encrypted credential storage
 //! - [`OAuthFlow`] - OAuth authentication flows
-//! 
+//!
 //! ## Examples
-//! 
+//!
 //! ### Multi-Provider Setup
-//! 
+//!
 //! ```rust,ignore
 //! use code_mesh_core::{ProviderRegistry, Provider};
-//! 
+//!
 //! let mut registry = ProviderRegistry::new();
-//! 
+//!
 //! // Add multiple providers
 //! registry.register_anthropic("anthropic-key")?;
 //! registry.register_openai("openai-key")?;
 //! registry.register_mistral("mistral-key")?;
-//! 
+//!
 //! // Use different models for different tasks
 //! let planning_model = registry.get_model("anthropic/claude-3-opus")?;
 //! let coding_model = registry.get_model("openai/gpt-4")?;
 //! let testing_model = registry.get_model("mistral/mistral-large")?;
 //! ```
-//! 
+//!
 //! ### Tool Integration
-//! 
+//!
 //! ```rust,ignore
 //! use code_mesh_core::{ToolRegistry, FileTools, BashTool};
-//! 
+//!
 //! let mut tools = ToolRegistry::new();
 //! tools.register(Box::new(FileTools::new()));
 //! tools.register(Box::new(BashTool::new()));
-//! 
+//!
 //! // Tools can be used by AI agents
 //! let context = ToolContext::new();
 //! let result = tools.execute("read_file", &["src/main.rs"], &context).await?;
 //! ```
-//! 
+//!
 //! ### Session Persistence
-//! 
+//!
 //! ```rust,ignore
 //! use code_mesh_core::{SessionManager, Storage};
-//! 
+//!
 //! let storage = Storage::new("./sessions")?;
 //! let mut manager = SessionManager::new(storage);
-//! 
+//!
 //! // Save session
 //! let session_id = manager.save_session(&session).await?;
-//! 
+//!
 //! // Load session later
 //! let restored_session = manager.load_session(&session_id).await?;
 //! ```
-//! 
+//!
 //! ## Feature Flags
-//! 
+//!
 //! Code Mesh Core supports conditional compilation based on target platform:
-//! 
+//!
 //! - `native` (default): Full native functionality including file system access
 //! - `wasm`: WebAssembly-compatible subset with browser APIs
 //! - `openai`: OpenAI provider support
 //! - `anthropic`: Anthropic provider support  
 //! - `mistral`: Mistral provider support
-//! 
+//!
 //! ## Error Handling
-//! 
+//!
 //! All public APIs use the [`Result`] type with [`Error`] for consistent error handling.
 //! Errors are categorized by type and provide detailed context for debugging.
-//! 
+//!
 //! ## Performance Considerations
-//! 
+//!
 //! - **Async/Await**: All I/O operations are asynchronous for better performance
 //! - **Connection Pooling**: HTTP clients use connection pooling for efficiency
 //! - **Caching**: Intelligent caching of model responses and file contents
@@ -178,23 +178,19 @@ pub mod utils;
 pub mod prompts;
 
 // Re-export commonly used types
-pub use llm::{
-    Provider, Model, LanguageModel, ProviderRegistry,
-    Message, MessageRole, MessageContent, GenerateOptions,
-    GenerateResult, StreamChunk, Usage, FinishReason
-};
-pub use tool::{
-    Tool, ToolContext, ToolResult, ToolRegistry, ToolError,
-    ToolDefinition
-};
 pub use auth::{Auth, AuthCredentials, AuthStorage};
-pub use storage::{Storage, StorageError};
-pub use session::{
-    Session, Message as SessionMessage, SessionManager, 
-    MessageRole as SessionMessageRole, SessionMetadata
-};
 pub use config::{Config, ConfigManager, ProviderConfig, ToolConfig};
-pub use permission::{PermissionManager, PermissionContext, PermissionLevel};
+pub use llm::{
+    FinishReason, GenerateOptions, GenerateResult, LanguageModel, Message, MessageContent,
+    MessageRole, Model, Provider, ProviderRegistry, StreamChunk, Usage,
+};
+pub use permission::{PermissionContext, PermissionLevel, PermissionManager};
+pub use session::{
+    Message as SessionMessage, MessageRole as SessionMessageRole, Session, SessionManager,
+    SessionMetadata,
+};
+pub use storage::{Storage, StorageError};
+pub use tool::{Tool, ToolContext, ToolDefinition, ToolError, ToolRegistry, ToolResult};
 
 // Error types
 pub use error::{Error, Result};
@@ -207,7 +203,6 @@ pub use sync::{AsyncMutex, AsyncRwLock, Debouncer};
 
 // Version and build information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 
 /// Runtime compatibility layer
 #[cfg(feature = "native")]

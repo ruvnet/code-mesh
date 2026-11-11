@@ -136,7 +136,7 @@ pub fn get_system_prompt(mode: Option<&str>) -> String {
         Some("beast") | Some("autonomous") => format!("{}\n\n{}", SYSTEM_PROMPT, BEAST_MODE_PROMPT),
         _ => SYSTEM_PROMPT.to_string(),
     };
-    
+
     // Add provider-specific identity if needed
     format!("{}\n\n{}", ANTHROPIC_IDENTITY, base_prompt)
 }

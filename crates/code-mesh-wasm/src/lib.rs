@@ -1,6 +1,6 @@
-use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global allocator.
 #[cfg(feature = "wee_alloc")]
@@ -10,7 +10,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[wasm_bindgen]
 extern "C" {
     fn alert(s: &str);
-    
+
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
 }
@@ -36,7 +36,7 @@ impl CodeMesh {
     pub fn new() -> CodeMesh {
         console_error_panic_hook::set_once();
         console_log!("CodeMesh initialized");
-        
+
         CodeMesh {
             agents: HashMap::new(),
             next_id: 0,
@@ -53,17 +53,17 @@ impl CodeMesh {
     pub fn create_agent(&mut self, agent_type: &str) -> Result<String, JsValue> {
         let id = format!("agent_{}", self.next_id);
         self.next_id += 1;
-        
+
         let agent = Agent {
             id: id.clone(),
             agent_type: agent_type.to_string(),
             status: "active".to_string(),
             tasks_completed: 0,
         };
-        
+
         self.agents.insert(id.clone(), agent);
         console_log!("Created agent: {} of type: {}", id, agent_type);
-        
+
         Ok(id)
     }
 
@@ -102,12 +102,16 @@ impl CodeMesh {
     pub fn get_performance_metrics(&self) -> Result<JsValue, JsValue> {
         let metrics = PerformanceMetrics {
             total_agents: self.agents.len(),
-            active_agents: self.agents.values().filter(|a| a.status == "active").count(),
+            active_agents: self
+                .agents
+                .values()
+                .filter(|a| a.status == "active")
+                .count(),
             total_tasks: self.agents.values().map(|a| a.tasks_completed).sum(),
             memory_usage: "48MB".to_string(),
             success_rate: 99.45,
         };
-        
+
         Ok(serde_wasm_bindgen::to_value(&metrics)?)
     }
 }
@@ -132,31 +136,31 @@ pub struct PerformanceMetrics {
 #[wasm_bindgen]
 pub fn process_data(data: &str) -> Result<String, JsValue> {
     console_log!("Processing data: {}", data);
-    
+
     // Simulate some processing
     let processed = data.to_uppercase();
-    
+
     Ok(format!("Processed: {}", processed))
 }
 
 #[wasm_bindgen]
 pub fn benchmark_performance(iterations: u32) -> Result<JsValue, JsValue> {
     let start = js_sys::Date::now();
-    
+
     // Simulate work
     for i in 0..iterations {
         let _ = format!("iteration_{}", i);
     }
-    
+
     let end = js_sys::Date::now();
     let duration = end - start;
-    
+
     let result = serde_json::json!({
         "iterations": iterations,
         "duration_ms": duration,
         "ops_per_second": (iterations as f64) / (duration / 1000.0)
     });
-    
+
     // json_compatible() emits a plain JS object; the default serializer turns
     // a serde_json map into a JS `Map`, so `result.iterations` was undefined.
     Ok(result.serialize(&serde_wasm_bindgen::Serializer::json_compatible())?)

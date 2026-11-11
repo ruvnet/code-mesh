@@ -41,10 +41,10 @@ pub enum PermissionResult {
 pub trait PermissionProvider: Send + Sync {
     /// Check if an operation is permitted
     async fn check_permission(&self, request: &PermissionRequest) -> PermissionResult;
-    
+
     /// Grant permission for a specific request
     async fn grant_permission(&self, request_id: &str) -> Result<(), String>;
-    
+
     /// Deny permission for a specific request
     async fn deny_permission(&self, request_id: &str, reason: String) -> Result<(), String>;
 }
@@ -71,20 +71,20 @@ impl PermissionProvider for InteractivePermissionProvider {
         if self.auto_approve_low_risk && request.risk_level == RiskLevel::Low {
             return PermissionResult::Granted;
         }
-        
+
         // For higher risk operations, require explicit confirmation
         let mut pending = self.pending_requests.write().await;
         pending.insert(request.id.clone(), request.clone());
-        
+
         PermissionResult::RequiresConfirmation(request.clone())
     }
-    
+
     async fn grant_permission(&self, request_id: &str) -> Result<(), String> {
         let mut pending = self.pending_requests.write().await;
         pending.remove(request_id);
         Ok(())
     }
-    
+
     async fn deny_permission(&self, request_id: &str, reason: String) -> Result<(), String> {
         let mut pending = self.pending_requests.write().await;
         pending.remove(request_id);
@@ -100,11 +100,11 @@ impl PermissionProvider for AutoApprovePermissionProvider {
     async fn check_permission(&self, _request: &PermissionRequest) -> PermissionResult {
         PermissionResult::Granted
     }
-    
+
     async fn grant_permission(&self, _request_id: &str) -> Result<(), String> {
         Ok(())
     }
-    
+
     async fn deny_permission(&self, _request_id: &str, reason: String) -> Result<(), String> {
         Err(reason)
     }
@@ -119,17 +119,15 @@ impl PermissionManager {
     pub fn new(provider: Box<dyn PermissionProvider>) -> Self {
         Self { provider }
     }
-    
+
     /// Ask for permission to perform an operation
     pub async fn ask(&self, request: PermissionRequest) -> Result<(), crate::error::Error> {
         match self.provider.check_permission(&request).await {
             PermissionResult::Granted => Ok(()),
-            PermissionResult::Denied(reason) => {
-                Err(crate::error::Error::Other(anyhow::anyhow!(
-                    "Permission denied: {}",
-                    reason
-                )))
-            }
+            PermissionResult::Denied(reason) => Err(crate::error::Error::Other(anyhow::anyhow!(
+                "Permission denied: {}",
+                reason
+            ))),
             PermissionResult::RequiresConfirmation(_) => {
                 // In a real implementation, this would trigger a UI prompt
                 // For now, we'll auto-deny operations requiring confirmation
@@ -164,22 +162,17 @@ pub fn create_permission_request(
 mod tests {
     use super::*;
     use serde_json::json;
-    
+
     #[tokio::test]
     async fn test_auto_approve_low_risk() {
         let provider = InteractivePermissionProvider::new(true);
-        let request = create_permission_request(
-            "test",
-            "session1",
-            "Read file",
-            RiskLevel::Low,
-            json!({}),
-        );
-        
+        let request =
+            create_permission_request("test", "session1", "Read file", RiskLevel::Low, json!({}));
+
         let result = provider.check_permission(&request).await;
         assert!(matches!(result, PermissionResult::Granted));
     }
-    
+
     #[tokio::test]
     async fn test_requires_confirmation_high_risk() {
         let provider = InteractivePermissionProvider::new(true);
@@ -190,11 +183,11 @@ mod tests {
             RiskLevel::Critical,
             json!({}),
         );
-        
+
         let result = provider.check_permission(&request).await;
         assert!(matches!(result, PermissionResult::RequiresConfirmation(_)));
     }
-    
+
     #[tokio::test]
     async fn test_auto_approve_provider() {
         let provider = AutoApprovePermissionProvider;
@@ -205,7 +198,7 @@ mod tests {
             RiskLevel::Critical,
             json!({}),
         );
-        
+
         let result = provider.check_permission(&request).await;
         assert!(matches!(result, PermissionResult::Granted));
     }

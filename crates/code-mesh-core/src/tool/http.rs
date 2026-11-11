@@ -83,7 +83,8 @@ impl HttpRequest {
         let json = serde_json::to_vec(data)
             .map_err(|e| Error::Other(anyhow::anyhow!("JSON serialization failed: {}", e)))?;
         self.body = Some(json.into());
-        self.headers.insert("Content-Type".to_string(), "application/json".to_string());
+        self.headers
+            .insert("Content-Type".to_string(), "application/json".to_string());
         Ok(self)
     }
 
@@ -94,7 +95,10 @@ impl HttpRequest {
             .collect::<Vec<_>>()
             .join("&");
         self.body = Some(form_data.into_bytes().into());
-        self.headers.insert("Content-Type".to_string(), "application/x-www-form-urlencoded".to_string());
+        self.headers.insert(
+            "Content-Type".to_string(),
+            "application/x-www-form-urlencoded".to_string(),
+        );
         self
     }
 
@@ -141,7 +145,8 @@ impl HttpResponse {
     }
 
     pub fn content_type(&self) -> Option<&String> {
-        self.header("content-type").or_else(|| self.header("Content-Type"))
+        self.header("content-type")
+            .or_else(|| self.header("Content-Type"))
     }
 
     pub fn content_length(&self) -> Option<usize> {
@@ -170,7 +175,7 @@ impl HttpResponse {
 pub trait HttpInterceptor: Send + Sync {
     /// Called before sending a request
     async fn before_request(&self, request: &mut HttpRequest) -> Result<(), Error>;
-    
+
     /// Called after receiving a response
     async fn after_response(&self, response: &mut HttpResponse) -> Result<(), Error>;
 }
@@ -207,16 +212,16 @@ impl HttpInterceptor for RateLimiter {
                 None
             }
         };
-        
+
         if let Some(duration) = sleep_duration {
             tokio::time::sleep(duration).await;
         }
-        
+
         {
             let mut last = self.last_request.lock();
             *last = Some(std::time::Instant::now());
         }
-        
+
         Ok(())
     }
 
@@ -302,7 +307,7 @@ impl CookieJar {
                     .iter()
                     .map(|c| format!("{}={}", c.name(), c.value()))
                     .collect::<Vec<_>>()
-                    .join("; ")
+                    .join("; "),
             )
         }
     }
@@ -413,11 +418,13 @@ impl HttpClientBuilder {
         }
 
         if let Some(ua) = self.default_user_agent {
-            self.interceptors.push(Box::new(UserAgentInterceptor::new(ua)));
+            self.interceptors
+                .push(Box::new(UserAgentInterceptor::new(ua)));
         }
 
         if let Some(jar) = self.cookie_jar {
-            self.interceptors.push(Box::new(CookieInterceptor::new(jar)));
+            self.interceptors
+                .push(Box::new(CookieInterceptor::new(jar)));
         }
 
         cfg_if::cfg_if! {
@@ -474,7 +481,10 @@ impl NativeHttpClient {
             .build()
             .map_err(|e| Error::Other(anyhow::anyhow!("Failed to create HTTP client: {}", e)))?;
 
-        Ok(Self { client, interceptors })
+        Ok(Self {
+            client,
+            interceptors,
+        })
     }
 }
 
@@ -692,7 +702,10 @@ pub fn is_safe_url(url: &Url) -> bool {
             }
             url::Host::Domain(domain) => {
                 // Block localhost and internal domains
-                if domain == "localhost" || domain.ends_with(".local") || domain.ends_with(".internal") {
+                if domain == "localhost"
+                    || domain.ends_with(".local")
+                    || domain.ends_with(".internal")
+                {
                     return false;
                 }
             }
@@ -704,11 +717,13 @@ pub fn is_safe_url(url: &Url) -> bool {
 
 /// Sanitize URL to prevent SSRF attacks
 pub fn sanitize_url(url_str: &str) -> Result<Url, Error> {
-    let url = Url::parse(url_str)
-        .map_err(|e| Error::Other(anyhow::anyhow!("Invalid URL: {}", e)))?;
+    let url =
+        Url::parse(url_str).map_err(|e| Error::Other(anyhow::anyhow!("Invalid URL: {}", e)))?;
 
     if !is_safe_url(&url) {
-        return Err(Error::Other(anyhow::anyhow!("URL not allowed for security reasons")));
+        return Err(Error::Other(anyhow::anyhow!(
+            "URL not allowed for security reasons"
+        )));
     }
 
     Ok(url)
@@ -738,7 +753,7 @@ mod tests {
             .domain("example.com")
             .path("/")
             .finish();
-        
+
         jar.add_cookie(cookie.into_owned());
 
         let url = Url::parse("https://example.com/test").unwrap();

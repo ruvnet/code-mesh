@@ -26,12 +26,15 @@ impl PkceChallenge {
                 chars[rng.gen_range(0..chars.len())] as char
             })
             .collect();
-        
+
         let mut hasher = Sha256::new();
         hasher.update(verifier.as_bytes());
         let challenge = URL_SAFE_NO_PAD.encode(hasher.finalize());
-        
-        Self { verifier, challenge }
+
+        Self {
+            verifier,
+            challenge,
+        }
     }
 }
 
@@ -57,12 +60,15 @@ impl AnthropicOAuth {
             .append_pair("code", "true")
             .append_pair("client_id", &self.client_id)
             .append_pair("response_type", "code")
-            .append_pair("redirect_uri", "https://console.anthropic.com/oauth/code/callback")
+            .append_pair(
+                "redirect_uri",
+                "https://console.anthropic.com/oauth/code/callback",
+            )
             .append_pair("scope", "org:create_api_key user:profile user:inference")
             .append_pair("code_challenge", &pkce.challenge)
             .append_pair("code_challenge_method", "S256")
             .append_pair("state", &pkce.verifier);
-        
+
         Ok(url.to_string())
     }
 
@@ -73,12 +79,15 @@ impl AnthropicOAuth {
             .append_pair("code", "true")
             .append_pair("client_id", &self.client_id)
             .append_pair("response_type", "code")
-            .append_pair("redirect_uri", "https://console.anthropic.com/oauth/code/callback")
+            .append_pair(
+                "redirect_uri",
+                "https://console.anthropic.com/oauth/code/callback",
+            )
             .append_pair("scope", "org:create_api_key user:profile user:inference")
             .append_pair("code_challenge", &pkce.challenge)
             .append_pair("code_challenge_method", "S256")
             .append_pair("state", &pkce.verifier);
-        
+
         Ok(url.to_string())
     }
 
@@ -93,17 +102,24 @@ impl AnthropicOAuth {
         params.insert("state", state);
         params.insert("grant_type", "authorization_code");
         params.insert("client_id", &self.client_id);
-        params.insert("redirect_uri", "https://console.anthropic.com/oauth/code/callback");
+        params.insert(
+            "redirect_uri",
+            "https://console.anthropic.com/oauth/code/callback",
+        );
         params.insert("code_verifier", verifier);
 
-        let response = self.client
+        let response = self
+            .client
             .post("https://console.anthropic.com/v1/oauth/token")
             .json(&params)
             .send()
             .await?;
 
         if !response.status().is_success() {
-            return Err(anyhow::anyhow!("Token exchange failed: {}", response.status()));
+            return Err(anyhow::anyhow!(
+                "Token exchange failed: {}",
+                response.status()
+            ));
         }
 
         let token_response: TokenResponse = response.json().await?;
@@ -112,7 +128,8 @@ impl AnthropicOAuth {
 
     /// Create API key using OAuth access token
     pub async fn create_api_key(&self, access_token: &str) -> Result<ApiKeyResponse> {
-        let response = self.client
+        let response = self
+            .client
             .post("https://api.anthropic.com/api/oauth/claude_cli/create_api_key")
             .header("Authorization", format!("Bearer {}", access_token))
             .header("Content-Type", "application/x-www-form-urlencoded")
@@ -121,7 +138,10 @@ impl AnthropicOAuth {
             .await?;
 
         if !response.status().is_success() {
-            return Err(anyhow::anyhow!("API key creation failed: {}", response.status()));
+            return Err(anyhow::anyhow!(
+                "API key creation failed: {}",
+                response.status()
+            ));
         }
 
         let api_key_response: ApiKeyResponse = response.json().await?;
