@@ -40,14 +40,14 @@ syntect = "5.2"
 
 # HTTP server
 axum = "0.7"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 
 # Utils
 open = "5.1"
 colored = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
-terminal_size = "0.3"
+terminal_size = "0.4"
 base64 = "0.22"
 sha2 = "0.10"
 rand = "0.8"
