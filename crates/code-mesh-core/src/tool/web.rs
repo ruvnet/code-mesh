@@ -1,6 +1,6 @@
 //! Web tools implementation
 
-use super::http::{HttpClient, HttpClientBuilder, HttpRequest, sanitize_url};
+use super::http::{sanitize_url, HttpClient, HttpClientBuilder, HttpRequest};
 use super::{Tool, ToolContext, ToolError, ToolResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ impl WebFetchTool {
             .verify_ssl(true)
             .build()
             .map_err(|e| ToolError::Other(e.into()))?;
-        
+
         Ok(Self { client })
     }
 }
@@ -41,11 +41,11 @@ impl Tool for WebFetchTool {
     fn id(&self) -> &str {
         "webfetch"
     }
-    
+
     fn description(&self) -> &str {
         "Fetches content from a specified URL and processes it according to the specified format. Supports HTML text extraction and markdown conversion."
     }
-    
+
     fn parameters_schema(&self) -> Value {
         json!({
             "type": "object",
@@ -70,43 +70,53 @@ impl Tool for WebFetchTool {
             "required": ["url"]
         })
     }
-    
+
     async fn execute(&self, args: Value, _ctx: ToolContext) -> Result<ToolResult, ToolError> {
         let params: WebFetchParams = serde_json::from_value(args)
             .map_err(|e| ToolError::InvalidParameters(e.to_string()))?;
-        
+
         // Sanitize and validate URL for security
-        let url = sanitize_url(&params.url)
-            .map_err(|e| ToolError::PermissionDenied(e.to_string()))?;
-        
+        let url =
+            sanitize_url(&params.url).map_err(|e| ToolError::PermissionDenied(e.to_string()))?;
+
         // Build request with timeout
         let timeout = Duration::from_secs(params.timeout.unwrap_or(30).min(120));
         let request = HttpRequest::get(url.clone())
             .timeout(timeout)
             .header("Accept".to_string(), "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8".to_string())
             .header("Accept-Language".to_string(), "en-US,en;q=0.9".to_string());
-        
-        let response = self.client.execute(request).await
+
+        let response = self
+            .client
+            .execute(request)
+            .await
             .map_err(|e| ToolError::ExecutionFailed(format!("Request failed: {}", e)))?;
-        
+
         if !response.is_success() {
-            return Err(ToolError::ExecutionFailed(format!("Request failed with status: {}", response.status())));
+            return Err(ToolError::ExecutionFailed(format!(
+                "Request failed with status: {}",
+                response.status()
+            )));
         }
-        
+
         // Check content length
         if response.body().len() > MAX_RESPONSE_SIZE {
-            return Err(ToolError::ExecutionFailed("Response too large (exceeds 5MB limit)".to_string()));
+            return Err(ToolError::ExecutionFailed(
+                "Response too large (exceeds 5MB limit)".to_string(),
+            ));
         }
-        
-        let content_type = response.content_type()
+
+        let content_type = response
+            .content_type()
             .cloned()
             .unwrap_or_else(|| "text/plain".to_string());
-        
-        let text = response.text()
+
+        let text = response
+            .text()
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to decode response: {}", e)))?;
-        
+
         let format = params.format.as_deref().unwrap_or("text");
-        
+
         let output = match format {
             "text" => {
                 if content_type.contains("text/html") {
@@ -114,18 +124,22 @@ impl Tool for WebFetchTool {
                 } else {
                     text
                 }
-            },
+            }
             "markdown" => {
                 if content_type.contains("text/html") {
                     convert_html_to_markdown(&text)?
                 } else {
                     format!("```\n{}\n```", text)
                 }
-            },
+            }
             "html" => text,
-            _ => return Err(ToolError::InvalidParameters("Invalid format specified".to_string())),
+            _ => {
+                return Err(ToolError::InvalidParameters(
+                    "Invalid format specified".to_string(),
+                ))
+            }
         };
-        
+
         Ok(ToolResult {
             title: format!("{} ({})", params.url, content_type),
             output,
@@ -153,62 +167,87 @@ impl WebSearchTool {
             .verify_ssl(true)
             .build()
             .map_err(|e| ToolError::Other(e.into()))?;
-        
+
         Ok(Self { client })
     }
-    
+
     /// Search using DuckDuckGo Instant Answer API
-    async fn search_duckduckgo(&self, query: &str, max_results: u32) -> Result<Vec<SearchResult>, ToolError> {
+    async fn search_duckduckgo(
+        &self,
+        query: &str,
+        max_results: u32,
+    ) -> Result<Vec<SearchResult>, ToolError> {
         let search_url = format!(
             "https://api.duckduckgo.com/?q={}&format=json&no_html=1&skip_disambig=1",
             urlencoding::encode(query)
         );
-        
+
         let url = Url::parse(&search_url)
             .map_err(|e| ToolError::ExecutionFailed(format!("Invalid search URL: {}", e)))?;
-        
-        let request = HttpRequest::get(url)
-            .header("Accept".to_string(), "application/json".to_string());
-        
-        let response = self.client.execute(request).await
+
+        let request =
+            HttpRequest::get(url).header("Accept".to_string(), "application/json".to_string());
+
+        let response = self
+            .client
+            .execute(request)
+            .await
             .map_err(|e| ToolError::ExecutionFailed(format!("Search request failed: {}", e)))?;
-        
+
         if !response.is_success() {
-            return Err(ToolError::ExecutionFailed(format!("Search failed with status: {}", response.status())));
+            return Err(ToolError::ExecutionFailed(format!(
+                "Search failed with status: {}",
+                response.status()
+            )));
         }
-        
-        let search_response: DuckDuckGoResponse = response.json()
-            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to parse search response: {}", e)))?;
-        
+
+        let search_response: DuckDuckGoResponse = response.json().map_err(|e| {
+            ToolError::ExecutionFailed(format!("Failed to parse search response: {}", e))
+        })?;
+
         let mut results = Vec::new();
-        
+
         // Add instant answer if available
         if !search_response.answer.is_empty() {
             results.push(SearchResult {
                 title: "Instant Answer".to_string(),
-                url: search_response.answer_url.unwrap_or_else(|| "https://duckduckgo.com".to_string()),
+                url: search_response
+                    .answer_url
+                    .unwrap_or_else(|| "https://duckduckgo.com".to_string()),
                 description: search_response.answer,
                 rank: 1,
                 source: "DuckDuckGo".to_string(),
             });
         }
-        
+
         // Add abstract if available
         if !search_response.abstract_text.is_empty() {
             results.push(SearchResult {
-                title: search_response.heading.unwrap_or_else(|| "Summary".to_string()),
-                url: search_response.abstract_url.unwrap_or_else(|| "https://duckduckgo.com".to_string()),
+                title: search_response
+                    .heading
+                    .unwrap_or_else(|| "Summary".to_string()),
+                url: search_response
+                    .abstract_url
+                    .unwrap_or_else(|| "https://duckduckgo.com".to_string()),
                 description: search_response.abstract_text,
                 rank: results.len() as u32 + 1,
                 source: "DuckDuckGo".to_string(),
             });
         }
-        
+
         // Add related topics
-        for (i, topic) in search_response.related_topics.iter().take(max_results as usize).enumerate() {
+        for (i, topic) in search_response
+            .related_topics
+            .iter()
+            .take(max_results as usize)
+            .enumerate()
+        {
             if !topic.text.is_empty() {
                 results.push(SearchResult {
-                    title: format!("Related: {}", topic.first_url.split('/').last().unwrap_or("Topic")),
+                    title: format!(
+                        "Related: {}",
+                        topic.first_url.split('/').last().unwrap_or("Topic")
+                    ),
                     url: topic.first_url.clone(),
                     description: topic.text.clone(),
                     rank: results.len() as u32 + 1,
@@ -216,7 +255,7 @@ impl WebSearchTool {
                 });
             }
         }
-        
+
         Ok(results.into_iter().take(max_results as usize).collect())
     }
 }
@@ -267,11 +306,11 @@ impl Tool for WebSearchTool {
     fn id(&self) -> &str {
         "websearch"
     }
-    
+
     fn description(&self) -> &str {
         "Searches the web using various search providers and returns formatted search results"
     }
-    
+
     fn parameters_schema(&self) -> Value {
         json!({
             "type": "object",
@@ -302,23 +341,24 @@ impl Tool for WebSearchTool {
             "required": ["query"]
         })
     }
-    
+
     async fn execute(&self, args: Value, _ctx: ToolContext) -> Result<ToolResult, ToolError> {
         let params: WebSearchParams = serde_json::from_value(args)
             .map_err(|e| ToolError::InvalidParameters(e.to_string()))?;
-        
+
         let max_results = params.max_results.unwrap_or(10).min(20);
         let provider = params.provider.as_deref().unwrap_or("duckduckgo");
-        
+
         let results = match provider {
-            "duckduckgo" | "auto" => {
-                self.search_duckduckgo(&params.query, max_results).await?
-            },
+            "duckduckgo" | "auto" => self.search_duckduckgo(&params.query, max_results).await?,
             _ => {
-                return Err(ToolError::InvalidParameters(format!("Unsupported search provider: {}", provider)));
+                return Err(ToolError::InvalidParameters(format!(
+                    "Unsupported search provider: {}",
+                    provider
+                )));
             }
         };
-        
+
         let output = if results.is_empty() {
             format!("No search results found for query: {}", params.query)
         } else {
@@ -326,16 +366,12 @@ impl Tool for WebSearchTool {
             for result in &results {
                 output.push_str(&format!(
                     "{}. **{}**\n   URL: {}\n   {}\n   Source: {}\n\n",
-                    result.rank,
-                    result.title,
-                    result.url,
-                    result.description,
-                    result.source
+                    result.rank, result.title, result.url, result.description, result.source
                 ));
             }
             output
         };
-        
+
         Ok(ToolResult {
             title: format!("Search results for: {}", params.query),
             output,
@@ -354,66 +390,95 @@ impl Tool for WebSearchTool {
 /// Extract text content from HTML using scraper
 fn extract_text_from_html(html: &str) -> Result<String, ToolError> {
     use scraper::{Html, Selector};
-    
+
     let document = Html::parse_document(html);
-    
+
     // Remove script and style content
     let script_selector = Selector::parse("script, style, noscript").unwrap();
     let mut clean_html = html.to_string();
-    
+
     for element in document.select(&script_selector) {
         if let Some(html_content) = element.html().get(0..element.html().len()) {
             clean_html = clean_html.replace(html_content, "");
         }
     }
-    
+
     let clean_document = Html::parse_document(&clean_html);
     let body_selector = Selector::parse("body").unwrap();
-    
+
     let text = if let Some(body) = clean_document.select(&body_selector).next() {
         body.text().collect::<Vec<_>>().join(" ")
     } else {
         // Fallback to whole document
-        clean_document.root_element().text().collect::<Vec<_>>().join(" ")
+        clean_document
+            .root_element()
+            .text()
+            .collect::<Vec<_>>()
+            .join(" ")
     };
-    
+
     // Clean up whitespace
     let re = regex::Regex::new(r"\s+").unwrap();
     let cleaned = re.replace_all(&text, " ");
-    
+
     Ok(cleaned.trim().to_string())
 }
 
-/// Convert HTML to Markdown using html2md
+/// Convert HTML to Markdown using htmd
 fn convert_html_to_markdown(html: &str) -> Result<String, ToolError> {
     // Clean the HTML first
     let clean_html = clean_html_for_markdown(html);
-    
+
     // Convert to markdown
-    let markdown = html2md::parse_html(&clean_html);
-    
+    let markdown = htmd::convert(&clean_html).map_err(|e| {
+        ToolError::ExecutionFailed(format!("HTML to Markdown conversion failed: {e}"))
+    })?;
+
     // Clean up the markdown
     let re = regex::Regex::new(r"\n\s*\n\s*\n").unwrap();
     let cleaned = re.replace_all(&markdown, "\n\n");
-    
+
     Ok(cleaned.trim().to_string())
 }
 
 /// Clean HTML before markdown conversion
 fn clean_html_for_markdown(html: &str) -> String {
     let mut cleaned = html.to_string();
-    
+
     // Remove script and style tags
-    let re = regex::Regex::new(r"(?s)<(script|style|noscript)[^>]*>.*?</\1>").unwrap();
+    // The regex crate has no backreferences, so match each tag pair explicitly.
+    let re = regex::Regex::new(
+        r"(?is)<script\b[^>]*>.*?</script>|<style\b[^>]*>.*?</style>|<noscript\b[^>]*>.*?</noscript>",
+    )
+    .unwrap();
     cleaned = re.replace_all(&cleaned, "").to_string();
-    
+
     // Remove comments
     let re = regex::Regex::new(r"(?s)<!--.*?-->").unwrap();
     cleaned = re.replace_all(&cleaned, "").to_string();
-    
+
     // Clean up attributes we don't need
     let re = regex::Regex::new(r#"\s+(class|id|style|onclick|onload)="[^"]*""#).unwrap();
     cleaned = re.replace_all(&cleaned, "").to_string();
-    
+
     cleaned
+}
+#[cfg(test)]
+mod clean_html_tests {
+    use super::{clean_html_for_markdown, convert_html_to_markdown};
+
+    #[test]
+    fn strips_script_style_and_noscript_blocks() {
+        let html = "<p>keep</p><script type=\"x\">var a = 1;</script>\
+                    <STYLE>p{}</STYLE><noscript>\nno js\n</noscript><p>also</p>";
+        let out = clean_html_for_markdown(html);
+        assert_eq!(out, "<p>keep</p><p>also</p>");
+    }
+
+    #[test]
+    fn converts_html_to_markdown_without_scripts() {
+        let html = "<h1>Title</h1><script>alert(1)</script><p>Some <strong>bold</strong> text.</p>";
+        let md = convert_html_to_markdown(html).unwrap();
+        assert_eq!(md, "# Title\n\nSome **bold** text.");
+    }
 }

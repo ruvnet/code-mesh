@@ -127,15 +127,15 @@ struct OpenAIUsage {
 
 impl OpenAIProvider {
     const API_BASE: &'static str = "https://api.openai.com";
-    
+
     pub fn new(auth: Box<dyn Auth>) -> Self {
         Self::with_api_base(auth, Self::API_BASE.to_string())
     }
-    
+
     pub fn with_api_base(auth: Box<dyn Auth>, api_base: String) -> Self {
         let client = Client::new();
         let models = Self::default_models();
-        
+
         Self {
             auth,
             client,
@@ -143,10 +143,10 @@ impl OpenAIProvider {
             api_base,
         }
     }
-    
+
     fn default_models() -> HashMap<String, OpenAIModel> {
         let mut models = HashMap::new();
-        
+
         models.insert(
             "gpt-4o".to_string(),
             OpenAIModel {
@@ -158,7 +158,7 @@ impl OpenAIProvider {
                 supports_caching: false,
             },
         );
-        
+
         models.insert(
             "gpt-4o-mini".to_string(),
             OpenAIModel {
@@ -170,7 +170,7 @@ impl OpenAIProvider {
                 supports_caching: false,
             },
         );
-        
+
         models.insert(
             "gpt-4-turbo".to_string(),
             OpenAIModel {
@@ -182,7 +182,7 @@ impl OpenAIProvider {
                 supports_caching: false,
             },
         );
-        
+
         models.insert(
             "gpt-3.5-turbo".to_string(),
             OpenAIModel {
@@ -194,7 +194,7 @@ impl OpenAIProvider {
                 supports_caching: false,
             },
         );
-        
+
         models.insert(
             "o1-preview".to_string(),
             OpenAIModel {
@@ -206,7 +206,7 @@ impl OpenAIProvider {
                 supports_caching: false,
             },
         );
-        
+
         models.insert(
             "o1-mini".to_string(),
             OpenAIModel {
@@ -218,13 +218,13 @@ impl OpenAIProvider {
                 supports_caching: false,
             },
         );
-        
+
         models
     }
-    
+
     async fn get_auth_header(&self) -> crate::Result<String> {
         let credentials = self.auth.get_credentials().await?;
-        
+
         match credentials {
             AuthCredentials::ApiKey { key } => Ok(format!("Bearer {}", key)),
             _ => Err(crate::Error::Other(anyhow::anyhow!(
@@ -232,14 +232,14 @@ impl OpenAIProvider {
             ))),
         }
     }
-    
+
     fn convert_messages(&self, messages: Vec<Message>) -> Vec<OpenAIMessage> {
         messages
             .into_iter()
             .map(|msg| self.convert_message(msg))
             .collect()
     }
-    
+
     fn convert_message(&self, message: Message) -> OpenAIMessage {
         let role = match message.role {
             MessageRole::System => "system",
@@ -248,7 +248,7 @@ impl OpenAIProvider {
             MessageRole::Tool => "tool",
         }
         .to_string();
-        
+
         let content = match message.content {
             MessageContent::Text(text) => OpenAIContent::Text(text),
             MessageContent::Parts(parts) => {
@@ -280,7 +280,7 @@ impl OpenAIProvider {
                 OpenAIContent::Parts(openai_parts)
             }
         };
-        
+
         let tool_calls = message.tool_calls.map(|calls| {
             calls
                 .into_iter()
@@ -294,7 +294,7 @@ impl OpenAIProvider {
                 })
                 .collect()
         });
-        
+
         OpenAIMessage {
             role,
             content,
@@ -303,7 +303,7 @@ impl OpenAIProvider {
             tool_call_id: message.tool_call_id,
         }
     }
-    
+
     fn convert_tools(&self, tools: Vec<ToolDefinition>) -> Vec<OpenAITool> {
         tools
             .into_iter()
@@ -317,7 +317,7 @@ impl OpenAIProvider {
             })
             .collect()
     }
-    
+
     fn parse_finish_reason(&self, reason: Option<String>) -> FinishReason {
         match reason.as_deref() {
             Some("stop") => FinishReason::Stop,
@@ -350,7 +350,7 @@ impl LanguageModel for OpenAIModelWithProvider {
         let auth_header = self.provider.get_auth_header().await?;
         let openai_messages = self.provider.convert_messages(messages);
         let tools = self.provider.convert_tools(options.tools);
-        
+
         let request = OpenAIRequest {
             model: self.model.id.clone(),
             messages: openai_messages,
@@ -360,7 +360,7 @@ impl LanguageModel for OpenAIModelWithProvider {
             stop: options.stop_sequences,
             stream: Some(false),
         };
-        
+
         let response = self
             .provider
             .client
@@ -371,7 +371,7 @@ impl LanguageModel for OpenAIModelWithProvider {
             .send()
             .await
             .map_err(|e| crate::Error::Other(anyhow::anyhow!("Request failed: {}", e)))?;
-            
+
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
@@ -381,32 +381,30 @@ impl LanguageModel for OpenAIModelWithProvider {
                 body
             )));
         }
-        
+
         let openai_response: OpenAIResponse = response
             .json()
             .await
             .map_err(|e| crate::Error::Other(anyhow::anyhow!("Failed to parse response: {}", e)))?;
-            
+
         let choice = openai_response
             .choices
             .into_iter()
             .next()
             .ok_or_else(|| crate::Error::Other(anyhow::anyhow!("No choices in response")))?;
-            
+
         let content = match choice.message.content {
             OpenAIContent::Text(text) => text,
-            OpenAIContent::Parts(parts) => {
-                parts
-                    .into_iter()
-                    .filter_map(|part| match part {
-                        OpenAIContentPart::Text { text } => Some(text),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>()
-                    .join("")
-            }
+            OpenAIContent::Parts(parts) => parts
+                .into_iter()
+                .filter_map(|part| match part {
+                    OpenAIContentPart::Text { text } => Some(text),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join(""),
         };
-        
+
         let tool_calls = choice
             .message
             .tool_calls
@@ -419,7 +417,7 @@ impl LanguageModel for OpenAIModelWithProvider {
                     .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
             })
             .collect();
-            
+
         Ok(GenerateResult {
             content,
             tool_calls,
@@ -431,7 +429,7 @@ impl LanguageModel for OpenAIModelWithProvider {
             finish_reason: self.provider.parse_finish_reason(choice.finish_reason),
         })
     }
-    
+
     async fn stream(
         &self,
         messages: Vec<Message>,
@@ -443,15 +441,15 @@ impl LanguageModel for OpenAIModelWithProvider {
             "Streaming not yet implemented for OpenAI"
         )))
     }
-    
+
     fn supports_tools(&self) -> bool {
         self.model.supports_tools
     }
-    
+
     fn supports_vision(&self) -> bool {
         self.model.supports_vision
     }
-    
+
     fn supports_caching(&self) -> bool {
         self.model.supports_caching
     }
@@ -472,18 +470,18 @@ impl AzureOpenAIProvider {
         api_version: String,
     ) -> Self {
         let base_provider = OpenAIProvider::with_api_base(auth, endpoint);
-        
+
         Self {
             base_provider,
             deployment_name,
             api_version,
         }
     }
-    
+
     pub fn default_api_version() -> String {
         "2024-02-15-preview".to_string()
     }
-    
+
     fn get_endpoint(&self) -> String {
         format!(
             "{}/openai/deployments/{}/chat/completions?api-version={}",
@@ -513,7 +511,7 @@ impl LanguageModel for AzureOpenAIModelWithProvider {
         let auth_header = self.provider.base_provider.get_auth_header().await?;
         let openai_messages = self.provider.base_provider.convert_messages(messages);
         let tools = self.provider.base_provider.convert_tools(options.tools);
-        
+
         // Azure uses deployment name instead of model in URL
         let request = OpenAIRequest {
             model: self.model.id.clone(), // Still include model in body for compatibility
@@ -524,7 +522,7 @@ impl LanguageModel for AzureOpenAIModelWithProvider {
             stop: options.stop_sequences,
             stream: Some(false),
         };
-        
+
         let response = self
             .provider
             .base_provider
@@ -536,7 +534,7 @@ impl LanguageModel for AzureOpenAIModelWithProvider {
             .send()
             .await
             .map_err(|e| crate::Error::Other(anyhow::anyhow!("Request failed: {}", e)))?;
-            
+
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
@@ -546,32 +544,30 @@ impl LanguageModel for AzureOpenAIModelWithProvider {
                 body
             )));
         }
-        
+
         let openai_response: OpenAIResponse = response
             .json()
             .await
             .map_err(|e| crate::Error::Other(anyhow::anyhow!("Failed to parse response: {}", e)))?;
-            
+
         let choice = openai_response
             .choices
             .into_iter()
             .next()
             .ok_or_else(|| crate::Error::Other(anyhow::anyhow!("No choices in response")))?;
-            
+
         let content = match choice.message.content {
             OpenAIContent::Text(text) => text,
-            OpenAIContent::Parts(parts) => {
-                parts
-                    .into_iter()
-                    .filter_map(|part| match part {
-                        OpenAIContentPart::Text { text } => Some(text),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>()
-                    .join("")
-            }
+            OpenAIContent::Parts(parts) => parts
+                .into_iter()
+                .filter_map(|part| match part {
+                    OpenAIContentPart::Text { text } => Some(text),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join(""),
         };
-        
+
         let tool_calls = choice
             .message
             .tool_calls
@@ -584,7 +580,7 @@ impl LanguageModel for AzureOpenAIModelWithProvider {
                     .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
             })
             .collect();
-            
+
         Ok(GenerateResult {
             content,
             tool_calls,
@@ -593,10 +589,13 @@ impl LanguageModel for AzureOpenAIModelWithProvider {
                 completion_tokens: openai_response.usage.completion_tokens,
                 total_tokens: openai_response.usage.total_tokens,
             },
-            finish_reason: self.provider.base_provider.parse_finish_reason(choice.finish_reason),
+            finish_reason: self
+                .provider
+                .base_provider
+                .parse_finish_reason(choice.finish_reason),
         })
     }
-    
+
     async fn stream(
         &self,
         _messages: Vec<Message>,
@@ -606,15 +605,15 @@ impl LanguageModel for AzureOpenAIModelWithProvider {
             "Streaming not yet implemented for Azure OpenAI"
         )))
     }
-    
+
     fn supports_tools(&self) -> bool {
         self.model.supports_tools
     }
-    
+
     fn supports_vision(&self) -> bool {
         self.model.supports_vision
     }
-    
+
     fn supports_caching(&self) -> bool {
         self.model.supports_caching
     }
@@ -623,7 +622,7 @@ impl LanguageModel for AzureOpenAIModelWithProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_default_models() {
         let models = OpenAIProvider::default_models();
@@ -632,40 +631,40 @@ mod tests {
         assert!(models.contains_key("gpt-4o-mini"));
         assert!(models.contains_key("o1-preview"));
     }
-    
+
     #[test]
     fn test_model_capabilities() {
         let models = OpenAIProvider::default_models();
         let gpt4o = models.get("gpt-4o").unwrap();
         assert!(gpt4o.supports_tools);
         assert!(gpt4o.supports_vision);
-        
+
         let o1 = models.get("o1-preview").unwrap();
         assert!(!o1.supports_tools);
         assert!(!o1.supports_vision);
-        
+
         let gpt35 = models.get("gpt-3.5-turbo").unwrap();
         assert!(gpt35.supports_tools);
         assert!(!gpt35.supports_vision);
     }
-    
+
     #[test]
     fn test_azure_endpoint() {
         use crate::auth::FileAuthStorage;
         use tempfile::tempdir;
-        
+
         let temp_dir = tempdir().unwrap();
         let auth_path = temp_dir.path().join("auth.json");
         let storage = FileAuthStorage::new(auth_path);
         let auth = Box::new(crate::auth::AnthropicAuth::new(Box::new(storage))); // Dummy auth
-        
+
         let provider = AzureOpenAIProvider::new(
             auth,
             "https://test.openai.azure.com".to_string(),
             "gpt-4".to_string(),
             "2024-02-15-preview".to_string(),
         );
-        
+
         let endpoint = provider.get_endpoint();
         assert!(endpoint.contains("openai/deployments/gpt-4"));
         assert!(endpoint.contains("api-version=2024-02-15-preview"));

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub trait Planner: Send + Sync {
     /// Create a plan from a high-level task description
     async fn plan(&self, task: &str, context: PlanContext) -> crate::Result<Plan>;
-    
+
     /// Update a plan based on progress
     async fn update_plan(&self, plan: &mut Plan, progress: &Progress) -> crate::Result<()>;
 }

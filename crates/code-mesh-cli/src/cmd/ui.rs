@@ -121,12 +121,13 @@ impl UI {
     pub fn input(&self, message: &str, default: Option<&str>) -> Result<String> {
         let theme = ColorfulTheme::default();
         let mut input = Input::<String>::with_theme(&theme).with_prompt(message);
-        
+
         if let Some(default) = default {
             input = input.default(default.to_string());
         }
-        
-        Ok(input.interact()
+
+        Ok(input
+            .interact()
             .map_err(|e| CliError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?)
     }
 
@@ -157,7 +158,9 @@ impl UI {
         let pb = ProgressBar::new(len);
         pb.set_style(
             ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+                .template(
+                    "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
+                )
                 .unwrap()
                 .progress_chars("█▉▊▋▌▍▎▏ "),
         );
@@ -172,7 +175,7 @@ impl UI {
             ProgressStyle::default_spinner()
                 .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
                 .template("{spinner:.cyan} {msg}")
-                .unwrap()
+                .unwrap(),
         );
         spinner.set_message(message.to_string());
         spinner.enable_steady_tick(Duration::from_millis(80));
@@ -187,7 +190,7 @@ impl UI {
 
     /// Check if we have a TTY
     pub fn is_tty(&self) -> bool {
-        atty::is(atty::Stream::Stderr)
+        std::io::IsTerminal::is_terminal(&std::io::stderr())
     }
 }
 
@@ -268,9 +271,9 @@ impl Table {
             .map(|(i, h)| format!("{:width$}", h, width = self.max_widths[i]))
             .collect::<Vec<_>>()
             .join(" │ ");
-        
+
         ui.println(&ui.theme.bold.apply_to(&header_line).to_string())?;
-        
+
         // Print separator
         let separator = self
             .max_widths

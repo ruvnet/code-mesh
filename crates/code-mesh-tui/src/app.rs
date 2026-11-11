@@ -71,24 +71,24 @@ impl App {
         let theme_manager = ThemeManager::default();
         let event_handler = EventHandler::new();
         let mut keybind_handler = KeybindHandler::new();
-        
+
         // Setup keybindings from config
         keybind_handler.set_leader_key(config.keybinds.leader.clone());
         for (action, key) in &config.keybinds.bindings {
             keybind_handler.bind(key.clone(), action.clone());
         }
-        
+
         let mouse_handler = MouseHandler::new();
-        
+
         // Initialize layout with default terminal size
         let layout_manager = LayoutManager::new(ratatui::layout::Rect::new(0, 0, 80, 24));
-        
+
         // Initialize components
         let chat = ChatComponent::new(&config.chat, theme_manager.current_theme());
         let file_viewer = FileViewer::new(&config.file_viewer, theme_manager.current_theme());
         let status_bar = StatusBar::new(theme_manager.current_theme());
         let command_palette = CommandPalette::new(theme_manager.current_theme());
-        
+
         Ok(Self {
             config,
             theme_manager,
@@ -106,35 +106,35 @@ impl App {
             target_fps: 60,
         })
     }
-    
+
     /// Run the application main loop
     pub async fn run(&mut self) -> Result<()> {
         let mut terminal = crate::init_terminal()?;
-        
+
         // Main application loop
         while self.state != AppState::Quitting {
             // Handle events
             if let Some(event) = self.event_handler.try_next() {
                 self.handle_event(event).await?;
             }
-            
+
             // Render at target FPS
             let now = Instant::now();
             let frame_duration = Duration::from_millis(1000 / self.target_fps);
-            
+
             if now.duration_since(self.last_render) >= frame_duration {
                 self.render(&mut terminal)?;
                 self.last_render = now;
             }
-            
+
             // Small sleep to prevent busy waiting
             tokio::time::sleep(Duration::from_millis(1)).await;
         }
-        
+
         crate::restore_terminal(&mut terminal)?;
         Ok(())
     }
-    
+
     /// Handle an application event
     async fn handle_event(&mut self, event: AppEvent) -> Result<()> {
         match event {
@@ -158,7 +158,7 @@ impl App {
         }
         Ok(())
     }
-    
+
     /// Handle input events
     async fn handle_input_event(&mut self, event: InputEvent) -> Result<()> {
         match event {
@@ -187,7 +187,7 @@ impl App {
         }
         Ok(())
     }
-    
+
     /// Execute a bound action
     async fn execute_action(&mut self, action: &str) -> Result<()> {
         match action {
@@ -245,7 +245,7 @@ impl App {
         }
         Ok(())
     }
-    
+
     /// Route key events to the appropriate component
     async fn route_key_event(&mut self, key_event: crossterm::event::KeyEvent) -> Result<()> {
         match self.state {
@@ -274,15 +274,19 @@ impl App {
         }
         Ok(())
     }
-    
+
     /// Handle mouse actions
     async fn handle_mouse_action(&mut self, action: crate::events::MouseAction) -> Result<()> {
         use crate::events::MouseAction;
-        
+
         match action {
             MouseAction::LeftClick(x, y) => {
                 // Determine which component was clicked
-                if self.layout_manager.main_area.intersects(ratatui::layout::Rect::new(x, y, 1, 1)) {
+                if self
+                    .layout_manager
+                    .main_area
+                    .intersects(ratatui::layout::Rect::new(x, y, 1, 1))
+                {
                     if self.file_viewer.is_visible() {
                         self.state = AppState::FileViewer;
                     } else {
@@ -304,7 +308,7 @@ impl App {
         }
         Ok(())
     }
-    
+
     /// Update components periodically
     async fn update_components(&mut self) -> Result<()> {
         self.chat.update().await?;
@@ -312,7 +316,7 @@ impl App {
         self.status_bar.update(&self.state).await?;
         Ok(())
     }
-    
+
     /// Handle custom application events
     async fn handle_custom_event(&mut self, message: String) -> Result<()> {
         // Parse and handle custom events
@@ -328,26 +332,27 @@ impl App {
         }
         Ok(())
     }
-    
+
     /// Render the application
     fn render(&mut self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
         terminal.draw(|frame| {
             let mut renderer = Renderer::new(frame, self.theme_manager.current_theme());
-            
+
             // Render main layout
             self.render_main_layout(&mut renderer);
-            
+
             // Render popups/dialogs on top
             self.render_overlays(&mut renderer);
         })?;
         Ok(())
     }
-    
+
     /// Render the main application layout
     fn render_main_layout(&mut self, renderer: &mut Renderer) {
         // Render status bar
-        self.status_bar.render(renderer, self.layout_manager.status_area);
-        
+        self.status_bar
+            .render(renderer, self.layout_manager.status_area);
+
         // Render main content area
         if self.file_viewer.is_visible() {
             // Show file viewer in side panel if available, or full area
@@ -355,25 +360,23 @@ impl App {
                 self.chat.render(renderer, self.layout_manager.main_area);
                 self.file_viewer.render(renderer, side_panel);
             } else {
-                self.file_viewer.render(renderer, self.layout_manager.main_area);
+                self.file_viewer
+                    .render(renderer, self.layout_manager.main_area);
             }
         } else {
             self.chat.render(renderer, self.layout_manager.main_area);
         }
-        
+
         // Render input area
-        self.chat.render_input(renderer, self.layout_manager.input_area);
+        self.chat
+            .render_input(renderer, self.layout_manager.input_area);
     }
-    
+
     /// Render overlay components like dialogs and command palette
     fn render_overlays(&mut self, renderer: &mut Renderer) {
         match self.state {
             AppState::CommandPalette => {
-                let popup_area = PopupLayout::centered(
-                    self.layout_manager.terminal_area,
-                    60,
-                    15,
-                );
+                let popup_area = PopupLayout::centered(self.layout_manager.terminal_area, 60, 15);
                 self.command_palette.render(renderer, popup_area);
             }
             AppState::Dialog => {
@@ -387,17 +390,13 @@ impl App {
                 }
             }
             AppState::Help => {
-                let popup_area = PopupLayout::percentage(
-                    self.layout_manager.terminal_area,
-                    80,
-                    80,
-                );
+                let popup_area = PopupLayout::percentage(self.layout_manager.terminal_area, 80, 80);
                 self.render_help(renderer, popup_area);
             }
             _ => {}
         }
     }
-    
+
     /// Toggle help display
     fn toggle_help(&mut self) {
         self.state = if self.state == AppState::Help {
@@ -406,7 +405,7 @@ impl App {
             AppState::Help
         };
     }
-    
+
     /// Toggle command palette
     fn toggle_command_palette(&mut self) {
         self.state = if self.state == AppState::CommandPalette {
@@ -415,13 +414,13 @@ impl App {
             AppState::CommandPalette
         };
     }
-    
+
     /// Open file dialog
     fn open_file_dialog(&mut self) {
         // Implementation would create a file picker dialog
         // For now, this is a placeholder
     }
-    
+
     /// Handle scrolling
     async fn handle_scroll(&mut self, up: bool) -> Result<()> {
         match self.state {
@@ -443,7 +442,7 @@ impl App {
         }
         Ok(())
     }
-    
+
     /// Handle page scrolling
     async fn handle_page_scroll(&mut self, up: bool) -> Result<()> {
         match self.state {
@@ -465,14 +464,17 @@ impl App {
         }
         Ok(())
     }
-    
+
     /// Check if coordinates are in a scrollable area
     fn is_in_scrollable_area(&self, x: u16, y: u16) -> bool {
         let point = ratatui::layout::Rect::new(x, y, 1, 1);
-        self.layout_manager.main_area.intersects(point) ||
-        self.layout_manager.side_panel.map_or(false, |area| area.intersects(point))
+        self.layout_manager.main_area.intersects(point)
+            || self
+                .layout_manager
+                .side_panel
+                .map_or(false, |area| area.intersects(point))
     }
-    
+
     /// Execute command palette result
     async fn execute_command_palette_result(&mut self, result: String) -> Result<()> {
         // Parse and execute command palette commands
@@ -484,11 +486,14 @@ impl App {
         }
         Ok(())
     }
-    
+
     /// Handle dialog result
-    async fn handle_dialog_result(&mut self, result: crate::components::DialogResult) -> Result<()> {
+    async fn handle_dialog_result(
+        &mut self,
+        result: crate::components::DialogResult,
+    ) -> Result<()> {
         use crate::components::DialogResult;
-        
+
         match result {
             DialogResult::Confirmed(_data) => {
                 // Handle confirmed dialog with data
@@ -499,7 +504,7 @@ impl App {
         }
         Ok(())
     }
-    
+
     /// Update theme for all components
     fn update_theme(&mut self) {
         let theme = self.theme_manager.current_theme();
@@ -508,16 +513,19 @@ impl App {
         self.status_bar.update_theme(theme);
         self.command_palette.update_theme(theme);
     }
-    
+
     /// Cycle through available themes
     fn cycle_theme(&mut self) {
         let themes = self.theme_manager.available_themes();
         if !themes.is_empty() {
             let current_name = self.theme_manager.current_theme().name();
-            let current_index = themes.iter().position(|name| name == current_name).unwrap_or(0);
+            let current_index = themes
+                .iter()
+                .position(|name| name == current_name)
+                .unwrap_or(0);
             let next_index = (current_index + 1) % themes.len();
             let next_theme = &themes[next_index];
-            
+
             if let Err(e) = self.theme_manager.set_theme(next_theme) {
                 eprintln!("Failed to set theme {}: {}", next_theme, e);
             } else {
@@ -525,7 +533,7 @@ impl App {
             }
         }
     }
-    
+
     /// Render help overlay
     fn render_help(&self, renderer: &mut Renderer, area: ratatui::layout::Rect) {
         // Implementation would render help content
@@ -549,12 +557,12 @@ mod tests {
     async fn test_app_state_transitions() {
         let config = Config::default();
         let mut app = App::new(config).await.unwrap();
-        
+
         assert_eq!(app.state, AppState::Running);
-        
+
         app.toggle_help();
         assert_eq!(app.state, AppState::Help);
-        
+
         app.toggle_help();
         assert_eq!(app.state, AppState::Chat);
     }

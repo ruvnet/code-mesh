@@ -1,12 +1,12 @@
 //! Session management for Code Mesh
 
 use crate::llm::Message as LlmMessage;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 pub mod manager;
-pub use manager::{SessionManager, SessionInfo};
+pub use manager::{SessionInfo, SessionManager};
 
 /// Session represents a conversation with the AI
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,13 +30,13 @@ impl Session {
             metadata: SessionMetadata::default(),
         }
     }
-    
+
     /// Add a message to the session
     pub fn add_message(&mut self, message: Message) {
         self.messages.push(message);
         self.updated_at = Utc::now();
     }
-    
+
     /// Get messages as LLM format
     pub fn to_llm_messages(&self) -> Vec<LlmMessage> {
         self.messages.iter().map(|m| m.to_llm_message()).collect()
@@ -69,7 +69,7 @@ impl Message {
             metadata: MessageMetadata::default(),
         }
     }
-    
+
     pub fn to_llm_message(&self) -> LlmMessage {
         LlmMessage {
             role: match self.role {

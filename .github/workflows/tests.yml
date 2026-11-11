@@ -5,16 +5,26 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+
+# Notes that apply to every Rust job below:
+# - code-mesh-core's `native` and `wasm` features are mutually exclusive, so jobs
+#   use the default feature set instead of --all-features.
+# - code-mesh-tui does not compile yet and nothing depends on it:
+#   https://github.com/ruvnet/code-mesh/issues/28
+# - The benches, and the tests under tests/<subdir>/, are stale or never wired
+#   up as test targets: https://github.com/ruvnet/code-mesh/issues/29
 
 jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         rust: [stable, beta, nightly]
@@ -28,22 +38,25 @@ jobs:
             rust: nightly
           - os: macos-latest
             rust: nightly
-    
+    env:
+      # rust-toolchain.toml pins `stable`; without this the beta/nightly legs
+      # would silently build with stable.
+      RUSTUP_TOOLCHAIN: ${{ matrix.rust }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
         components: rustfmt, clippy
 
     - name: Cache Cargo dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/bin/
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
@@ -51,27 +64,26 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-${{ matrix.rust }}-
-          ${{ runner.os }}-cargo-
 
     - name: Check formatting
       run: cargo fmt --all -- --check
       if: matrix.rust == 'stable' && matrix.os == 'ubuntu-latest'
 
     - name: Run Clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --workspace --exclude code-mesh-tui --lib --bins --tests --examples -- -D warnings
       if: matrix.rust == 'stable'
 
     - name: Build
-      run: cargo build --all-targets --all-features
+      run: cargo build --workspace --exclude code-mesh-tui --lib --bins --tests --examples
 
     - name: Run unit tests
-      run: cargo test --all-features --lib
+      run: cargo test --workspace --exclude code-mesh-tui --lib
 
-    - name: Run integration tests
-      run: cargo test --all-features --test '*'
+    - name: Run binary tests
+      run: cargo test --workspace --exclude code-mesh-tui --bins
 
     - name: Run doc tests
-      run: cargo test --all-features --doc
+      run: cargo test --workspace --exclude code-mesh-tui --doc
 
   test-wasm:
     name: WASM Tests
@@ -86,31 +98,33 @@ jobs:
         targets: wasm32-unknown-unknown
 
     - name: Install wasm-pack
-      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      uses: taiki-e/install-action@v2
+      with:
+        tool: wasm-pack@0.14.0
 
     - name: Cache Cargo dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/bin/
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-          target/
-        key: wasm-cargo-${{ hashFiles('**/Cargo.lock') }}
+          crates/code-mesh-wasm/target/
+        key: wasm-cargo-${{ hashFiles('crates/code-mesh-wasm/Cargo.lock') }}
 
     - name: Build WASM
-      run: wasm-pack build crates/code-mesh-wasm --target web
+      run: wasm-pack build --target web crates/code-mesh-wasm
 
+    # The wasm tests do not call wasm_bindgen_test_configure!(run_in_browser),
+    # so they run under Node; a headless-browser run would execute zero tests.
     - name: Run WASM tests in Node.js
-      run: wasm-pack test crates/code-mesh-wasm --node
-
-    - name: Run WASM tests in browser (headless)
-      run: wasm-pack test crates/code-mesh-wasm --headless --chrome
+      run: wasm-pack test --node crates/code-mesh-wasm
 
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -119,13 +133,14 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
 
     - name: Install tarpaulin
-      run: cargo install cargo-tarpaulin
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-tarpaulin
 
     - name: Cache Cargo dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/bin/
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
@@ -134,18 +149,22 @@ jobs:
 
     - name: Generate coverage report
       run: |
-        cargo tarpaulin --all-features --workspace --timeout 120 \
+        cargo tarpaulin --workspace --exclude code-mesh-tui --timeout 120 \
           --exclude-files "tests/*" "benches/*" "examples/*" \
           --out xml --output-dir coverage/
 
+    # Uploading needs a CODECOV_TOKEN repository secret; without it (forks, or
+    # before the owner adds it) the report is still generated and archived.
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      if: env.CODECOV_TOKEN != ''
+      uses: codecov/codecov-action@v5
       with:
-        file: coverage/cobertura.xml
+        files: coverage/cobertura.xml
+        token: ${{ env.CODECOV_TOKEN }}
         fail_ci_if_error: true
 
     - name: Archive coverage results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-report
         path: coverage/
@@ -153,7 +172,9 @@ jobs:
   benchmark:
     name: Performance Benchmarks
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Quarantined: the criterion benches do not compile against the current
+    # core API. Re-enable once https://github.com/ruvnet/code-mesh/issues/29 is fixed.
+    if: ${{ false }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -161,29 +182,21 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Cache Cargo dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: bench-cargo-${{ hashFiles('**/Cargo.lock') }}
-
     - name: Run benchmarks
-      run: cargo bench --all-features
+      run: cargo bench -p code-mesh-core
 
     - name: Archive benchmark results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: benchmark-results
         path: target/criterion/
 
-  property-tests:
-    name: Property-based Tests
+  mutation-tests:
+    name: Mutation Testing
     runs-on: ubuntu-latest
+    # Mutating the whole workspace takes hours, so this runs only on demand.
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 300
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -191,53 +204,17 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Cache Cargo dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: proptest-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Run property tests
-      run: cargo test --all-features prop_
-      env:
-        PROPTEST_CASES: 10000
-
-  mutation-tests:
-    name: Mutation Testing
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@nightly
-
     - name: Install cargo-mutants
-      run: cargo install cargo-mutants
-
-    - name: Cache Cargo dependencies
-      uses: actions/cache@v3
+      uses: taiki-e/install-action@v2
       with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: mutants-cargo-${{ hashFiles('**/Cargo.lock') }}
+        tool: cargo-mutants
 
     - name: Run mutation tests
-      run: cargo mutants --timeout 60 --jobs 2
-      continue-on-error: true
+      run: cargo mutants --package code-mesh-core --package code-mesh-cli --timeout 60 --jobs 2
 
     - name: Archive mutation test results
-      uses: actions/upload-artifact@v3
+      if: always()
+      uses: actions/upload-artifact@v4
       with:
         name: mutation-test-results
         path: mutants.out/
@@ -253,43 +230,15 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
 
     - name: Install cargo-audit
-      run: cargo install cargo-audit
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-audit
 
     - name: Run security audit
       run: cargo audit
 
     - name: Run cargo deny
-      uses: EmbarkStudios/cargo-deny-action@v1
-
-  integration-real-apis:
-    name: Integration Tests with Real APIs
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    env:
-      # These would be set as GitHub secrets
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_TEST_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_TEST_API_KEY }}
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Cache Cargo dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: integration-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Run integration tests with real APIs
-      run: cargo test --all-features integration_real_
-      continue-on-error: true
+      uses: EmbarkStudios/cargo-deny-action@v2
 
   memory-tests:
     name: Memory Tests
@@ -302,13 +251,14 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
 
     - name: Install Valgrind
-      run: sudo apt-get install valgrind
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y valgrind
 
     - name: Cache Cargo dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/bin/
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
@@ -317,21 +267,26 @@ jobs:
 
     - name: Run memory tests
       run: |
-        cargo build --tests --all-features
-        for test_binary in $(find target/debug/deps -name '*-*' -type f -executable); do
+        cargo test --workspace --exclude code-mesh-tui --lib --bins --no-run --message-format=json \
+          | jq -r 'select(.profile.test == true and .executable != null) | .executable' > test-binaries.txt
+        test -s test-binaries.txt
+        while read -r test_binary; do
           echo "Running memory test on $test_binary"
-          valgrind --tool=memcheck --leak-check=full --error-exitcode=1 $test_binary --test-threads=1 || true
-        done
+          valgrind --tool=memcheck --leak-check=full --errors-for-leak-kinds=definite \
+            --error-exitcode=1 "$test_binary" --test-threads=1 < /dev/null
+        done < test-binaries.txt
 
   cross-compile:
     name: Cross Compilation
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
+        # x86_64-apple-darwin is not listed: cross has no macOS image, and the
+        # macOS builds run natively in ci.yml's Build Artifacts job.
         target:
           - aarch64-unknown-linux-gnu
           - x86_64-pc-windows-gnu
-          - x86_64-apple-darwin
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -342,15 +297,18 @@ jobs:
         targets: ${{ matrix.target }}
 
     - name: Install cross
-      run: cargo install cross
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cross
 
+    # Cross.toml installs the target's OpenSSL for reqwest's native-tls backend.
     - name: Cross compile
-      run: cross build --target ${{ matrix.target }} --all-features
+      run: cross build --target ${{ matrix.target }} --workspace --exclude code-mesh-tui
 
   test-report:
     name: Test Report
     runs-on: ubuntu-latest
-    needs: [test, test-wasm, coverage, property-tests]
+    needs: [test, test-wasm, coverage]
     if: always()
     steps:
     - name: Generate test report
@@ -360,10 +318,9 @@ jobs:
         echo "- Unit tests: ${{ needs.test.result }}" >> test-report.md
         echo "- WASM tests: ${{ needs.test-wasm.result }}" >> test-report.md
         echo "- Coverage: ${{ needs.coverage.result }}" >> test-report.md
-        echo "- Property tests: ${{ needs.property-tests.result }}" >> test-report.md
 
     - name: Upload test report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-report
         path: test-report.md

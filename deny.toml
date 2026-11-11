@@ -1,17 +1,20 @@
-# Configuration for cargo-deny
+# Configuration for cargo-deny (schema v2, cargo-deny >= 0.16)
+[graph]
+# `native` and `wasm` in code-mesh-core are mutually exclusive, so check the
+# default feature set rather than --all-features.
+all-features = false
+
 [advisories]
-db-path = "~/.cargo/advisory-db"
-db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
-unmaintained = "warn"
+# Vulnerabilities and unsound crates are always errors in schema v2.
+# Unmaintained crates are reported only for our direct dependencies.
+unmaintained = "workspace"
 yanked = "warn"
-notice = "warn"
 ignore = [
     #"RUSTSEC-0000-0000",
 ]
 
 [licenses]
-unlicensed = "deny"
+confidence-threshold = 0.8
 allow = [
     "MIT",
     "Apache-2.0",
@@ -20,17 +23,16 @@ allow = [
     "BSD-3-Clause",
     "ISC",
     "Unicode-DFS-2016",
+    # Successor of Unicode-DFS-2016; used by the ICU4X crates (via url/idna) and unicode-ident.
+    "Unicode-3.0",
+    # Permissive (foldhash via hashbrown).
+    "Zlib",
+    # Public-domain dedication (notify).
+    "CC0-1.0",
+    # File-level weak copyleft; compatible with linking from MIT code
+    # (cssparser/selectors via scraper, colored, option-ext via dirs).
+    "MPL-2.0",
 ]
-deny = [
-    "GPL-2.0",
-    "GPL-3.0",
-    "AGPL-1.0",
-    "AGPL-3.0",
-]
-copyleft = "warn"
-allow-osi-fsf-free = "neither"
-default = "deny"
-confidence-threshold = 0.8
 exceptions = [
     # Allow ring which has a unique license structure
     { allow = ["MIT", "ISC", "OpenSSL"], name = "ring" },
@@ -42,18 +44,12 @@ wildcards = "allow"
 highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
-allow = [
-    # Allow common duplicate dependencies
-    { name = "syn", version = "*" },
-    { name = "quote", version = "*" },
-    { name = "proc-macro2", version = "*" },
-]
 deny = [
     # Deny old versions with known issues
     { name = "openssl", version = "<0.10.55" },
     { name = "tokio", version = "<1.20" },
     # Deny packages that could be problematic
-    { name = "git2", version = "*" }, # Use libgit2-sys instead
+    { name = "git2" }, # Use libgit2-sys instead
 ]
 
 [sources]
