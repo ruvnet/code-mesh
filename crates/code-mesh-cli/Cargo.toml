@@ -52,7 +52,7 @@ base64 = "0.22"
 sha2 = "0.10"
 rand = "0.8"
 url = "2.5"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.13", features = ["json"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
