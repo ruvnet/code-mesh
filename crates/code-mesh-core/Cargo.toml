@@ -50,7 +50,7 @@ async-openai = { version = "0.23", optional = true }
 
 # Tool system
 regex = "1.10"
-similar = "2.5"
+similar = "3.2"
 glob = "0.3"
 walkdir = { workspace = true }
 which = { workspace = true }
