@@ -41,7 +41,7 @@ thiserror = "1.0"
 anyhow = "1.0"
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "stream"] }
+reqwest = { version = "0.13", features = ["json", "stream"] }
 
 # Logging
 tracing = "0.1"
