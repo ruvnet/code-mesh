@@ -117,7 +117,7 @@ wiremock = "0.6"
 assert_fs = "1.1"
 predicates = "3.1"
 insta = "1.39"
-rstest = "0.22"
+rstest = "0.28"
 
 [profile.release]
 lto = true
