@@ -114,7 +114,7 @@ jobs:
     # before the owner adds it) the report is still generated and archived.
     - name: Upload coverage to Codecov
       if: env.CODECOV_TOKEN != ''
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v7
       with:
         files: lcov.info
         token: ${{ env.CODECOV_TOKEN }}
