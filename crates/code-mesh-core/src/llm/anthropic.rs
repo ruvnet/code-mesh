@@ -573,23 +573,29 @@ impl AnthropicModel {
     }
 
     pub async fn estimate_cost(&self, input_tokens: u32, output_tokens: u32) -> crate::Result<f64> {
-        // Claude pricing (example rates)
-        let input_cost_per_1k = match self.model_id.as_str() {
+        if let Some(cost) = llm_prices::lookup(&self.model_id)
+            .and_then(|p| p.cost(input_tokens as u64, output_tokens as u64))
+        {
+            return Ok(cost);
+        }
+
+        // Claude pricing per 1M tokens for ids llm-prices does not list
+        let input_cost_per_1m = match self.model_id.as_str() {
             "claude-3-opus-20240229" => 15.0,
             "claude-3-sonnet-20240229" => 3.0,
             "claude-3-haiku-20240307" => 0.25,
             _ => 3.0, // Default to Sonnet pricing
         };
 
-        let output_cost_per_1k = match self.model_id.as_str() {
+        let output_cost_per_1m = match self.model_id.as_str() {
             "claude-3-opus-20240229" => 75.0,
             "claude-3-sonnet-20240229" => 15.0,
             "claude-3-haiku-20240307" => 1.25,
             _ => 15.0, // Default to Sonnet pricing
         };
 
-        let input_cost = (input_tokens as f64 / 1000.0) * input_cost_per_1k;
-        let output_cost = (output_tokens as f64 / 1000.0) * output_cost_per_1k;
+        let input_cost = (input_tokens as f64 / 1_000_000.0) * input_cost_per_1m;
+        let output_cost = (output_tokens as f64 / 1_000_000.0) * output_cost_per_1m;
 
         Ok(input_cost + output_cost)
     }
@@ -931,9 +937,14 @@ impl Model for AnthropicModelInfo {
     }
 
     async fn estimate_cost(&self, input_tokens: u32, output_tokens: u32) -> crate::Result<f64> {
-        // Simple cost calculation based on Claude pricing
-        let input_cost = (input_tokens as f64 / 1000.0) * 3.0;
-        let output_cost = (output_tokens as f64 / 1000.0) * 15.0;
+        if let Some(cost) = llm_prices::lookup(&self.id)
+            .and_then(|p| p.cost(input_tokens as u64, output_tokens as u64))
+        {
+            return Ok(cost);
+        }
+        // Fall back to Sonnet pricing per 1M tokens
+        let input_cost = (input_tokens as f64 / 1_000_000.0) * 3.0;
+        let output_cost = (output_tokens as f64 / 1_000_000.0) * 15.0;
         Ok(input_cost + output_cost)
     }
 
@@ -1644,5 +1655,39 @@ impl LanguageModel for AnthropicModelWithProvider {
 
     fn supports_caching(&self) -> bool {
         true
+    }
+}
+
+#[cfg(test)]
+mod cost_tests {
+    use super::*;
+
+    fn model(id: &str) -> AnthropicModel {
+        let provider = AnthropicProvider::new(Box::new(SimpleAnthropicAuth::new()));
+        AnthropicModel::new(provider, id.to_string())
+    }
+
+    #[tokio::test]
+    async fn estimate_cost_is_per_million_tokens() {
+        // 1M input + 1M output on Sonnet 4.5 is $3 + $15, not $18,000.
+        let cost = model("claude-sonnet-4-5-20250929")
+            .estimate_cost(1_000_000, 1_000_000)
+            .await
+            .unwrap();
+        assert!((cost - 18.0).abs() < 1e-9, "{cost}");
+
+        // Current models get their own price, not the Sonnet default.
+        let cost = model("claude-haiku-4-5")
+            .estimate_cost(1_000_000, 1_000_000)
+            .await
+            .unwrap();
+        assert!((cost - 6.0).abs() < 1e-9, "{cost}");
+
+        // Retired ids not in the table keep their old rates, per 1M.
+        let cost = model("claude-3-opus-20240229")
+            .estimate_cost(1_000_000, 1_000_000)
+            .await
+            .unwrap();
+        assert!((cost - 90.0).abs() < 1e-9, "{cost}");
     }
 }
